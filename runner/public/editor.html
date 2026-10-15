@@ -84,6 +84,16 @@
   .frame .knoppen { display: flex; flex-direction: column; gap: 5px; }
   .frame .knoppen button { font-size: 12px; padding: 4px 9px; }
 
+  /* Smal venster (of het paneel naast de chat): knoppen onder het frame in
+     plaats van ernaast, anders vallen ze buiten beeld. */
+  @media (max-width: 1100px) {
+    #links { width: 240px; }
+    #rechts { padding: 14px; }
+    .naast { flex-direction: column; gap: 0; }
+    .frame { flex-wrap: wrap; }
+    .frame .knoppen { flex-direction: row; flex-wrap: wrap; width: 100%; }
+  }
+
   #dropzone { border: 1px dashed var(--rand); border-radius: 10px; padding: 16px;
     text-align: center; color: var(--zacht); font-size: 14px; cursor: pointer; }
   #dropzone.over { border-color: var(--accent); color: var(--accent); background: #22241c; }

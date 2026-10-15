@@ -40,6 +40,9 @@
   .dot.goed { background: var(--goed); }
   .dot.fout { background: var(--fout); }
   #balk .rek { flex: 1; }
+  select { font: inherit; font-size: 14px; color: var(--tekst); background: #272b31;
+    border: 1px solid var(--rand); border-radius: 7px; padding: 6px 10px; }
+  button.aan { background: var(--goed); color: #06220f; border-color: var(--goed); font-weight: 600; }
   a.knop, button {
     font: inherit; font-size: 14px; color: var(--tekst); background: #272b31;
     border: 1px solid var(--rand); border-radius: 7px; padding: 7px 14px;
@@ -81,6 +84,9 @@
       <div class="stat"><span class="dot" id="dotScherm"></span><span id="txtScherm">scherm</span></div>
       <div class="stat"><span class="dot" id="dotScanner"></span><span id="txtScanner">scanner</span></div>
       <div class="rek"></div>
+      <select id="lezingKiezer" title="welke lezing draait"></select>
+      <button id="scantest">Scanner-test uit</button>
+      <a class="knop" href="/editor" target="_blank">Editor</a>
       <a class="knop" id="openScherm" href="/show" target="_blank">Scherm openen</a>
     </div>
 
@@ -273,7 +279,86 @@
     }
   });
 
+  // ------------------------------------------------------------ lezing kiezen
+  function laadLezingen() {
+    return fetch('/api/packs').then(function (r) { return r.json(); }).then(function (j) {
+      var kiezer = el('lezingKiezer');
+      kiezer.innerHTML = '';
+      j.packs.forEach(function (p) {
+        var o = document.createElement('option');
+        o.value = p.naam;
+        o.textContent = p.naam + (p.fout ? ' (klopt niet)' : ' · ' + p.slides + ' slides');
+        o.disabled = !!p.fout;
+        kiezer.appendChild(o);
+      });
+      kiezer.value = j.actief;
+    });
+  }
+
+  el('lezingKiezer').addEventListener('change', function () {
+    post('/api/select', {naam: el('lezingKiezer').value}).then(function (j) {
+      if (!j || j.ok === false) { return; }
+      // Andere lezing betekent andere slides: alles opnieuw ophalen.
+      fetch('/api/pack').then(function (r) { return r.json(); }).then(function (k) {
+        pack = k;
+        document.title = (k.title || k.naam) + ' — operator';
+        bouwLijst();
+        toonStand();
+      });
+    });
+  });
+
+  // ------------------------------------------------------------- scanner-test
+  //
+  // De zelfscanner typt als een toetsenbord. Hangt er een scanner aan deze
+  // laptop, dan kan je daarmee de hele lezing testen zonder dat de app op het
+  // device al af is: elke scan gaat hier naar /api/scan, precies zoals het
+  // device het straks doet. Zelfde aanpak als in de v2-app: afsluiten op Enter,
+  // en anders als het getik 200 ms stil is.
+  var scantestAan = false;
+  var buffer = '';
+  var bufferTimer = null;
+
+  function commitScan() {
+    if (bufferTimer) { clearTimeout(bufferTimer); bufferTimer = null; }
+    var code = buffer.replace(/[^0-9]/g, '');
+    buffer = '';
+    if (code.length < 4) { return; }
+    fetch('/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({barcode: code}),
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      el('melding').textContent = j && j.bekend === false
+        ? 'gescand: ' + code + ' — staat niet in deze lezing'
+        : '';
+    });
+  }
+
+  el('scantest').addEventListener('click', function () {
+    scantestAan = !scantestAan;
+    el('scantest').textContent = 'Scanner-test ' + (scantestAan ? 'aan' : 'uit');
+    el('scantest').className = scantestAan ? 'aan' : '';
+    el('melding').textContent = scantestAan
+      ? 'Scan maar. Toetsaanslagen van de scanner gaan nu naar de lezing.'
+      : '';
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (!scantestAan) { return; }
+    if (e.target && e.target.tagName === 'INPUT') { return; }
+    if (e.key === 'Enter') {
+      if (buffer) { e.preventDefault(); commitScan(); }
+      return;
+    }
+    if (e.key.length !== 1) { return; }
+    buffer += e.key;
+    if (bufferTimer) { clearTimeout(bufferTimer); }
+    bufferTimer = setTimeout(commitScan, 200);
+  });
+
   // --------------------------------------------------------------------- start
+  laadLezingen();
   fetch('/api/pack').then(function (r) { return r.json(); }).then(function (j) {
     pack = j;
     document.title = (j.title || j.naam) + ' — operator';

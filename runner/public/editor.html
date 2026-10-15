@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lezing — editor</title>
+<style>
+  :root {
+    --bg: #15171a; --paneel: #1d2024; --veld: #101216; --rand: #2b3036;
+    --tekst: #e8eaed; --zacht: #9aa3ad; --accent: #ffd166; --goed: #2ecc71; --fout: #e74c3c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--tekst);
+    font: 15px/1.5 -apple-system, Helvetica, sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  /* ---------------------------------------------------------------- balk */
+  #balk { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    border-bottom: 1px solid var(--rand); background: var(--paneel); flex-wrap: wrap; }
+  #balk .rek { flex: 1; }
+  select, input, textarea, button, a.knop {
+    font: inherit; color: var(--tekst); background: var(--veld);
+    border: 1px solid var(--rand); border-radius: 7px; padding: 7px 10px;
+  }
+  button, a.knop { background: #272b31; cursor: pointer; text-decoration: none; }
+  button:hover, a.knop:hover { background: #30353c; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.primair { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+  button.primair:disabled { background: #3a3a2e; color: #7b7b6a; border-color: #3a3a2e; }
+  button.gevaar:hover { background: #4a2420; border-color: #6b2f28; }
+  #opslaanStatus { font-size: 13px; color: var(--zacht); }
+  #opslaanStatus.vuil { color: var(--accent); }
+  #opslaanStatus.fout { color: var(--fout); }
+
+  /* ---------------------------------------------------------------- body */
+  #body { flex: 1; display: flex; min-height: 0; }
+  #links { width: 300px; min-width: 240px; background: var(--paneel);
+    border-right: 1px solid var(--rand); display: flex; flex-direction: column; }
+  #slideLijst { flex: 1; overflow-y: auto; padding: 10px; }
+  #links .onderaan { padding: 10px; border-top: 1px solid var(--rand); }
+
+  .rij { border: 1px solid var(--rand); border-radius: 8px; padding: 8px 10px;
+    margin-bottom: 7px; cursor: pointer; background: #22262b; display: flex; gap: 8px;
+    align-items: flex-start; }
+  .rij:hover { border-color: #3d444c; }
+  .rij.actief { border-color: var(--accent); background: #2a2a20; }
+  .rij .nr { color: var(--zacht); font-size: 12px; min-width: 18px; }
+  .rij .mid { flex: 1; min-width: 0; }
+  .rij .code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  .rij .sub { color: var(--zacht); font-size: 12px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .rij .pijlen { display: flex; flex-direction: column; gap: 2px; }
+  .rij .pijlen button { padding: 0 5px; font-size: 10px; line-height: 15px; border-radius: 4px; }
+
+  #rechts { flex: 1; overflow-y: auto; padding: 18px 22px; min-width: 0; }
+  .leegmelding { color: var(--zacht); padding: 40px 0; text-align: center; }
+
+  .veldrij { margin-bottom: 16px; }
+  .veldrij label { display: block; font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--zacht); margin-bottom: 5px; }
+  .veldrij input[type=text], .veldrij textarea { width: 100%; }
+  .veldrij textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+  .hint { color: #5f666e; font-size: 12px; margin-top: 4px; }
+  .naast { display: flex; gap: 14px; }
+  .naast > div { flex: 1; }
+
+  /* -------------------------------------------------------------- frames */
+  h2 { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--zacht); margin: 24px 0 10px; }
+  .frame { display: flex; gap: 12px; border: 1px solid var(--rand); border-radius: 10px;
+    padding: 10px; margin-bottom: 10px; background: var(--paneel); }
+  .thumb { width: 150px; height: 92px; border-radius: 6px; background: #000;
+    overflow: hidden; flex: none; display: flex; align-items: center;
+    justify-content: center; color: #555; font-size: 11px; position: relative; }
+  .thumb img, .thumb video { width: 100%; height: 100%; object-fit: contain; }
+  .thumb iframe { width: 400px; height: 245px; border: 0; transform: scale(0.375);
+    transform-origin: 0 0; position: absolute; top: 0; left: 0; pointer-events: none; }
+  .frame .info { flex: 1; min-width: 0; }
+  .frame .naam { font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+    color: var(--zacht); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frame .soort { display: inline-block; font-size: 11px; padding: 1px 7px;
+    border-radius: 20px; background: #2b3036; color: var(--zacht); margin-bottom: 6px; }
+  .frame textarea { width: 100%; min-height: 54px; font-size: 14px; }
+  .frame .knoppen { display: flex; flex-direction: column; gap: 5px; }
+  .frame .knoppen button { font-size: 12px; padding: 4px 9px; }
+
+  #dropzone { border: 1px dashed var(--rand); border-radius: 10px; padding: 16px;
+    text-align: center; color: var(--zacht); font-size: 14px; cursor: pointer; }
+  #dropzone.over { border-color: var(--accent); color: var(--accent); background: #22241c; }
+
+  /* ------------------------------------------------------------- fouten */
+  #fouten { border-top: 1px solid var(--rand); background: #251a1a; padding: 10px 16px;
+    color: #ffb3ab; font-size: 13px; display: none; }
+  #fouten.toon { display: block; }
+  #fouten ul { margin: 6px 0 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="balk">
+    <select id="lezingKiezer" title="welke lezing bewerk je"></select>
+    <button id="nieuweLezing">Nieuwe lezing</button>
+    <input type="text" id="titel" placeholder="titel van de lezing" style="width: 230px">
+    <div class="rek"></div>
+    <span id="opslaanStatus">opgeslagen</span>
+    <button id="opslaan" class="primair">Opslaan</button>
+    <button id="draaien" title="deze lezing op het scherm zetten">Deze draaien</button>
+    <a class="knop" href="/" target="_blank">Operator</a>
+    <a class="knop" href="/show" target="_blank">Scherm</a>
+  </div>
+
+  <div id="body">
+    <div id="links">
+      <div id="slideLijst"></div>
+      <div class="onderaan">
+        <button id="nieuweSlide" style="width: 100%">+ Slide toevoegen</button>
+      </div>
+    </div>
+    <div id="rechts">
+      <div class="leegmelding">Kies links een slide, of maak er een.</div>
+    </div>
+  </div>
+
+  <div id="fouten"></div>
+</div>
+
+<input type="file" id="bestandKiezer" multiple style="display: none"
+       accept="image/*,video/*,.html,.htm">
+
+<script>
+(function () {
+  var el = function (id) { return document.getElementById(id); };
+
+  var lezingen = [];     // lijst uit /api/packs
+  var actiefDraait = ''; // welke lezing nu op het scherm staat
+  var naam = '';         // welke lezing we bewerken
+  var manifest = null;   // {version, title, clearScan, slides: [...]}
+  var gekozen = -1;      // index van de slide die openstaat
+  var vuil = false;
+
+  // ------------------------------------------------------------------ hulp
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body || {}),
+    }).then(function (r) { return r.json(); });
+  }
+
+  function zetVuil(aan) {
+    vuil = aan;
+    el('opslaanStatus').textContent = aan ? 'niet opgeslagen' : 'opgeslagen';
+    el('opslaanStatus').className = aan ? 'vuil' : '';
+    el('opslaan').disabled = !aan;
+  }
+
+  function toonFouten(lijst) {
+    var box = el('fouten');
+    if (!lijst || !lijst.length) {
+      box.className = '';
+      box.innerHTML = '';
+      return;
+    }
+    box.className = 'toon';
+    box.innerHTML = '<b>Niet opgeslagen, dit klopt nog niet:</b><ul>' +
+      lijst.map(function (f) { return '<li>' + f.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</li>'; }).join('') +
+      '</ul>';
+  }
+
+  function bestandsnaamVan(src) { return String(src || '').split('/').pop(); }
+
+  // ----------------------------------------------------------- lezingenlijst
+  function laadLezingen() {
+    return fetch('/api/packs').then(function (r) { return r.json(); }).then(function (j) {
+      lezingen = j.packs;
+      actiefDraait = j.actief;
+      var kiezer = el('lezingKiezer');
+      kiezer.innerHTML = '';
+      lezingen.forEach(function (p) {
+        var o = document.createElement('option');
+        o.value = p.naam;
+        o.textContent = p.naam + (p.fout ? '  (klopt niet)' : '  · ' + p.slides + ' slides') +
+          (p.naam === actiefDraait ? '  — draait' : '');
+        kiezer.appendChild(o);
+      });
+      if (!naam && lezingen.length) { naam = actiefDraait || lezingen[0].naam; }
+      kiezer.value = naam;
+      el('draaien').disabled = naam === actiefDraait;
+    });
+  }
+
+  function laadLezing(welke) {
+    naam = welke;
+    return fetch('/api/pack?naam=' + encodeURIComponent(welke))
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.fout) {
+          toonFouten([j.fout]);
+          manifest = null;
+          el('rechts').innerHTML = '<div class="leegmelding">Deze lezing klopt niet. ' +
+            'Repareer runner/packs/' + welke + '/lezing.json met de hand.</div>';
+          el('slideLijst').innerHTML = '';
+          return;
+        }
+        toonFouten([]);
+        manifest = {
+          version: j.version || '1.0.0',
+          title: j.title || '',
+          clearScan: j.clearScan || '',
+          slides: j.slides.map(function (s) {
+            return {
+              barcode: s.barcode,
+              label: s.label || '',
+              note: s.note || '',
+              frames: s.frames.map(function (f) { return {src: f.src, note: f.note || ''}; }),
+            };
+          }),
+        };
+        // normalizeManifest op de server erft de note van de slide naar elk
+        // frame. In de editor willen we alleen een frame-note zien als die echt
+        // afwijkt, anders staat dezelfde tekst twee keer op het scherm.
+        manifest.slides.forEach(function (s) {
+          s.frames.forEach(function (f) { if (f.note === s.note) { f.note = ''; } });
+        });
+        el('titel').value = manifest.title;
+        gekozen = manifest.slides.length ? 0 : -1;
+        zetVuil(false);
+        tekenLijst();
+        tekenSlide();
+      });
+  }
+
+  // -------------------------------------------------------------- slidelijst
+  function tekenLijst() {
+    var box = el('slideLijst');
+    box.innerHTML = '';
+    if (!manifest) { return; }
+    manifest.slides.forEach(function (s, i) {
+      var rij = document.createElement('div');
+      rij.className = 'rij' + (i === gekozen ? ' actief' : '');
+
+      var nr = document.createElement('div');
+      nr.className = 'nr';
+      nr.textContent = String(i + 1);
+      rij.appendChild(nr);
+
+      var mid = document.createElement('div');
+      mid.className = 'mid';
+      var code = document.createElement('div');
+      code.className = 'code';
+      code.textContent = s.barcode || '(geen barcode)';
+      mid.appendChild(code);
+      var sub = document.createElement('div');
+      sub.className = 'sub';
+      sub.textContent = (s.label ? s.label + ' · ' : '') +
+        s.frames.length + (s.frames.length === 1 ? ' frame' : ' frames');
+      mid.appendChild(sub);
+      rij.appendChild(mid);
+
+      var pijlen = document.createElement('div');
+      pijlen.className = 'pijlen';
+      var op = document.createElement('button');
+      op.textContent = '▲';
+      op.title = 'omhoog';
+      op.addEventListener('click', function (e) { e.stopPropagation(); verplaatsSlide(i, -1); });
+      var neer = document.createElement('button');
+      neer.textContent = '▼';
+      neer.title = 'omlaag';
+      neer.addEventListener('click', function (e) { e.stopPropagation(); verplaatsSlide(i, 1); });
+      pijlen.appendChild(op);
+      pijlen.appendChild(neer);
+      rij.appendChild(pijlen);
+
+      rij.addEventListener('click', function () { gekozen = i; tekenLijst(); tekenSlide(); });
+      box.appendChild(rij);
+    });
+  }
+
+  function verplaatsSlide(i, richting) {
+    var j = i + richting;
+    if (j < 0 || j >= manifest.slides.length) { return; }
+    var x = manifest.slides[i];
+    manifest.slides[i] = manifest.slides[j];
+    manifest.slides[j] = x;
+    if (gekozen === i) { gekozen = j; } else if (gekozen === j) { gekozen = i; }
+    zetVuil(true);
+    tekenLijst();
+  }
+
+  // ------------------------------------------------------------- slide-editor
+  function tekenSlide() {
+    var box = el('rechts');
+    box.innerHTML = '';
+    if (!manifest || gekozen < 0 || !manifest.slides[gekozen]) {
+      box.innerHTML = '<div class="leegmelding">Kies links een slide, of maak er een.</div>';
+      return;
+    }
+    var slide = manifest.slides[gekozen];
+
+    // barcode en label naast elkaar
+    var naast = document.createElement('div');
+    naast.className = 'naast';
+
+    naast.appendChild(veld('Barcode', 'input', slide.barcode, function (v) {
+      slide.barcode = v.replace(/[^0-9]/g, '');
+      zetVuil(true);
+      tekenLijst();
+    }, 'Klik hier en scan met de aangesloten scanner, of typ de cijfers.', 'barcodeVeld'));
+
+    naast.appendChild(veld('Label (alleen voor jezelf)', 'input', slide.label, function (v) {
+      slide.label = v;
+      zetVuil(true);
+      tekenLijst();
+    }, 'Bijvoorbeeld de productnaam. Staat in de operator-lijst, niet op het scherm.'));
+
+    box.appendChild(naast);
+
+    box.appendChild(veld('Note op de scanner', 'textarea', slide.note, function (v) {
+      slide.note = v;
+      zetVuil(true);
+    }, 'Dit staat op het schermpje van de zelfscanner. Html mag, &lt;br&gt; voor een nieuwe regel.'));
+
+    var h = document.createElement('h2');
+    h.textContent = 'Frames (' + slide.frames.length + ')';
+    box.appendChild(h);
+
+    var uitleg = document.createElement('div');
+    uitleg.className = 'hint';
+    uitleg.style.margin = '-6px 0 10px';
+    uitleg.textContent = slide.frames.length > 1
+      ? 'Dezelfde barcode opnieuw scannen gaat naar het volgende frame. Na het laatste weer naar het eerste.'
+      : 'Voeg een tweede frame toe als je deze barcode twee keer wil kunnen scannen.';
+    box.appendChild(uitleg);
+
+    slide.frames.forEach(function (frame, j) {
+      box.appendChild(tekenFrame(slide, frame, j));
+    });
+
+    var drop = document.createElement('div');
+    drop.id = 'dropzone';
+    drop.textContent = 'Sleep hier een afbeelding, video of html-pagina naartoe, of klik om te kiezen';
+    drop.addEventListener('click', function () { kiesBestanden(null); });
+    drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.className = 'over'; });
+    drop.addEventListener('dragleave', function () { drop.className = ''; });
+    drop.addEventListener('drop', function (e) {
+      e.preventDefault();
+      drop.className = '';
+      uploadBestanden(e.dataTransfer.files, null);
+    });
+    box.appendChild(drop);
+
+    var verwijder = document.createElement('button');
+    verwijder.className = 'gevaar';
+    verwijder.textContent = 'Slide verwijderen';
+    verwijder.style.marginTop = '26px';
+    verwijder.addEventListener('click', function () {
+      if (!confirm('Slide ' + (gekozen + 1) + ' (' + (slide.barcode || 'geen barcode') + ') verwijderen?')) { return; }
+      manifest.slides.splice(gekozen, 1);
+      gekozen = Math.min(gekozen, manifest.slides.length - 1);
+      zetVuil(true);
+      tekenLijst();
+      tekenSlide();
+    });
+    box.appendChild(verwijder);
+  }
+
+  function veld(label, soort, waarde, bijWijziging, hint, id) {
+    var wrap = document.createElement('div');
+    wrap.className = 'veldrij';
+    var l = document.createElement('label');
+    l.textContent = label;
+    wrap.appendChild(l);
+    var input = document.createElement(soort === 'textarea' ? 'textarea' : 'input');
+    if (soort !== 'textarea') { input.type = 'text'; }
+    if (id) { input.id = id; }
+    input.value = waarde || '';
+    input.addEventListener('input', function () { bijWijziging(input.value); });
+    wrap.appendChild(input);
+    if (hint) {
+      var h = document.createElement('div');
+      h.className = 'hint';
+      h.innerHTML = hint;
+      wrap.appendChild(h);
+    }
+    return wrap;
+  }
+
+  function tekenFrame(slide, frame, j) {
+    var rij = document.createElement('div');
+    rij.className = 'frame';
+
+    var thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    var url = '/packs/' + encodeURIComponent(naam) + '/' + frame.src;
+    var ext = frame.src.split('.').pop().toLowerCase();
+    if (['mp4', 'mov', 'webm'].indexOf(ext) >= 0) {
+      var v = document.createElement('video');
+      v.src = url;
+      v.muted = true;
+      v.preload = 'metadata';
+      v.addEventListener('mouseenter', function () { v.play(); });
+      v.addEventListener('mouseleave', function () { v.pause(); v.currentTime = 0; });
+      thumb.appendChild(v);
+    } else if (['html', 'htm'].indexOf(ext) >= 0) {
+      var f = document.createElement('iframe');
+      f.src = url;
+      thumb.appendChild(f);
+    } else {
+      var img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      thumb.appendChild(img);
+    }
+    rij.appendChild(thumb);
+
+    var info = document.createElement('div');
+    info.className = 'info';
+    var soort = document.createElement('span');
+    soort.className = 'soort';
+    soort.textContent = (slide.frames.length > 1 ? (j + 1) + 'e scan · ' : '') + ext;
+    info.appendChild(soort);
+    var nm = document.createElement('div');
+    nm.className = 'naam';
+    nm.textContent = bestandsnaamVan(frame.src);
+    info.appendChild(nm);
+    var ta = document.createElement('textarea');
+    ta.placeholder = 'Eigen note voor dit frame (leeg = de note van de slide)';
+    ta.value = frame.note || '';
+    ta.addEventListener('input', function () { frame.note = ta.value; zetVuil(true); });
+    info.appendChild(ta);
+    rij.appendChild(info);
+
+    var knoppen = document.createElement('div');
+    knoppen.className = 'knoppen';
+
+    var toon = document.createElement('button');
+    toon.textContent = 'Op scherm';
+    toon.disabled = naam !== actiefDraait || vuil;
+    toon.title = naam !== actiefDraait
+      ? 'Zet eerst deze lezing op "Deze draaien"'
+      : (vuil ? 'Sla eerst op' : 'Zet dit frame op het scherm');
+    toon.addEventListener('click', function () {
+      post('/api/command', {cmd: 'goto', barcode: slide.barcode, frameIndex: j});
+    });
+    knoppen.appendChild(toon);
+
+    var vervang = document.createElement('button');
+    vervang.textContent = 'Vervangen';
+    vervang.addEventListener('click', function () { kiesBestanden(j); });
+    knoppen.appendChild(vervang);
+
+    if (j > 0) {
+      var op = document.createElement('button');
+      op.textContent = '▲ eerder';
+      op.addEventListener('click', function () {
+        var x = slide.frames[j - 1];
+        slide.frames[j - 1] = slide.frames[j];
+        slide.frames[j] = x;
+        zetVuil(true);
+        tekenSlide();
+      });
+      knoppen.appendChild(op);
+    }
+
+    var weg = document.createElement('button');
+    weg.className = 'gevaar';
+    weg.textContent = 'Weg';
+    weg.addEventListener('click', function () {
+      slide.frames.splice(j, 1);
+      zetVuil(true);
+      tekenLijst();
+      tekenSlide();
+    });
+    knoppen.appendChild(weg);
+
+    rij.appendChild(knoppen);
+    return rij;
+  }
+
+  // ------------------------------------------------------------------ upload
+  var vervangIndex = null;
+
+  function kiesBestanden(frameIndex) {
+    vervangIndex = frameIndex;
+    el('bestandKiezer').value = '';
+    el('bestandKiezer').click();
+  }
+
+  el('bestandKiezer').addEventListener('change', function (e) {
+    uploadBestanden(e.target.files, vervangIndex);
+  });
+
+  function uploadBestanden(bestanden, frameIndex) {
+    if (!bestanden || !bestanden.length || gekozen < 0) { return; }
+    var slide = manifest.slides[gekozen];
+    var lijst = Array.prototype.slice.call(bestanden);
+    var fouten = [];
+
+    el('opslaanStatus').textContent = 'uploaden…';
+
+    var ketting = Promise.resolve();
+    lijst.forEach(function (bestand, n) {
+      ketting = ketting.then(function () {
+        return fetch('/api/upload?pack=' + encodeURIComponent(naam) +
+                     '&name=' + encodeURIComponent(bestand.name), {
+          method: 'POST',
+          body: bestand,
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (!j.ok) { fouten.push(bestand.name + ': ' + j.fout); return; }
+          if (frameIndex !== null && n === 0) {
+            slide.frames[frameIndex].src = j.src;
+          } else {
+            slide.frames.push({src: j.src, note: ''});
+          }
+        });
+      });
+    });
+
+    ketting.then(function () {
+      toonFouten(fouten);
+      zetVuil(true);
+      tekenLijst();
+      tekenSlide();
+    });
+  }
+
+  // ------------------------------------------------------------------ opslaan
+  function opslaan() {
+    if (!manifest) { return Promise.resolve(); }
+    manifest.title = el('titel').value;
+    // Lege frame-notes weglaten, dan blijft lezing.json leesbaar.
+    var schoon = {
+      version: manifest.version,
+      title: manifest.title,
+      slides: manifest.slides.map(function (s) {
+        var uit = {barcode: s.barcode, frames: s.frames.map(function (f) {
+          return f.note ? {src: f.src, note: f.note} : {src: f.src};
+        })};
+        if (s.label) { uit.label = s.label; }
+        if (s.note) { uit.note = s.note; }
+        return uit;
+      }),
+    };
+    if (manifest.clearScan) { schoon.clearScan = manifest.clearScan; }
+
+    return post('/api/pack/save', {naam: naam, manifest: schoon}).then(function (j) {
+      if (!j.ok) {
+        toonFouten(j.fouten || [j.fout]);
+        el('opslaanStatus').textContent = 'niet opgeslagen';
+        el('opslaanStatus').className = 'fout';
+        return;
+      }
+      toonFouten([]);
+      zetVuil(false);
+      laadLezingen();
+      tekenSlide();
+    });
+  }
+
+  // ------------------------------------------------------------------ knoppen
+  el('opslaan').addEventListener('click', opslaan);
+
+  el('titel').addEventListener('input', function () { zetVuil(true); });
+
+  el('nieuweSlide').addEventListener('click', function () {
+    if (!manifest) { return; }
+    manifest.slides.push({barcode: '', label: '', note: '', frames: []});
+    gekozen = manifest.slides.length - 1;
+    zetVuil(true);
+    tekenLijst();
+    tekenSlide();
+    var veldje = el('barcodeVeld');
+    if (veldje) { veldje.focus(); }
+  });
+
+  el('nieuweLezing').addEventListener('click', function () {
+    var n = prompt('Naam van de nieuwe lezing (letters, cijfers, - en _):');
+    if (!n) { return; }
+    post('/api/pack/new', {naam: n, title: n}).then(function (j) {
+      if (!j.ok) { alert(j.fout); return; }
+      laadLezingen().then(function () {
+        el('lezingKiezer').value = j.naam;
+        laadLezing(j.naam);
+      });
+    });
+  });
+
+  el('lezingKiezer').addEventListener('change', function () {
+    var volgende = el('lezingKiezer').value;
+    if (vuil && !confirm('Je hebt niet-opgeslagen wijzigingen. Toch wisselen?')) {
+      el('lezingKiezer').value = naam;
+      return;
+    }
+    laadLezing(volgende);
+  });
+
+  el('draaien').addEventListener('click', function () {
+    post('/api/select', {naam: naam}).then(function (j) {
+      if (!j.ok) { alert(j.fout); return; }
+      laadLezingen().then(tekenSlide);
+    });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      opslaan();
+    }
+  });
+
+  window.addEventListener('beforeunload', function (e) {
+    if (vuil) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // --------------------------------------------------------------------- start
+  laadLezingen().then(function () {
+    if (naam) { laadLezing(naam); }
+  });
+})();
+</script>
+</body>
+</html>

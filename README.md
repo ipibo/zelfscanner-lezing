@@ -16,9 +16,19 @@ Het pack-formaat, de validatie en de runner. Het dashboard nog niet.
 node runner/server.js demo
 ```
 
-Daarna: operator op <http://localhost:8080/>, scherm op
-<http://localhost:8080/show>. De zelfscanner POST straks naar
-`http://<ip>:8080/api/scan`.
+Of zonder naam, als er maar één lezing is. Daarna:
+
+| Pagina | Waarvoor |
+|---|---|
+| <http://localhost:8080/editor> | lezingen bouwen: barcodes, frames, notes, uploads |
+| <http://localhost:8080/> | operator: handbesturing, status, scanner-test |
+| <http://localhost:8080/show> | het beeld voor de beamer |
+
+De zelfscanner POST straks naar `http://<ip>:8080/api/scan`.
+
+**Zonder device testen:** hang een barcodescanner aan de laptop, zet op de
+operator-pagina "Scanner-test" aan en scan. Die toetsaanslagen gaan dan naar
+dezelfde `/api/scan` als straks vanaf het device.
 
 | Map | Wat |
 |---|---|
@@ -26,6 +36,7 @@ Daarna: operator op <http://localhost:8080/>, scherm op
 | `runner/server.js` | http en server-sent events, zonder afhankelijkheden |
 | `runner/public/show.html` | de schermpagina voor de beamer |
 | `runner/public/operator.html` | handbesturing, status en de notes |
+| `runner/public/editor.html` | de editor: slides, frames, notes, uploads |
 | `runner/packs/demo/` | demo-lezing om mee te testen |
 | `tools/check-pack.js` | controleert een pack vóór de lezing |
 | `tools/convert-oude-database.js` | zet de oude `database.json` om |

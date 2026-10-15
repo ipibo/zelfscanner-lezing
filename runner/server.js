@@ -27,7 +27,8 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const {loadPack} = require('../shared/manifest-schema');
+const crypto = require('crypto');
+const {loadPack, validateManifest, kindForFile} = require('../shared/manifest-schema');
 
 const ROOT = __dirname;
 const PACKS_DIR = path.join(ROOT, 'packs');
@@ -46,45 +47,87 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-function kiesPack() {
+/**
+ * Alle packs in runner/packs/ inlezen. Eentje met fouten blokkeert de start
+ * niet: die staat in de lijst met zijn foutmelding, zodat je hem in de editor
+ * kan repareren in plaats van de runner niet te kunnen starten. Alleen de
+ * lezing die je gaat géven moet kloppen.
+ */
+function lesPacksIn() {
   if (!fs.existsSync(PACKS_DIR)) {
-    throw new Error(`geen map ${PACKS_DIR}`);
+    fs.mkdirSync(PACKS_DIR, {recursive: true});
   }
   const namen = fs
     .readdirSync(PACKS_DIR)
-    .filter(n => !n.startsWith('.') && fs.statSync(path.join(PACKS_DIR, n)).isDirectory());
-  if (packName) {
-    if (!namen.includes(packName)) {
-      throw new Error(`pack "${packName}" bestaat niet. Beschikbaar: ${namen.join(', ') || 'geen'}`);
+    .filter(n => !n.startsWith('.') && fs.statSync(path.join(PACKS_DIR, n)).isDirectory())
+    .sort();
+  const uit = new Map();
+  for (const naam of namen) {
+    try {
+      const p = loadPack(path.join(PACKS_DIR, naam));
+      p.naam = naam;
+      p.fout = null;
+      uit.set(naam, p);
+    } catch (e) {
+      uit.set(naam, {naam, dir: path.join(PACKS_DIR, naam), manifest: null, fout: e.message});
     }
-    return packName;
   }
-  if (namen.length === 0) {
-    throw new Error('geen packs in runner/packs/');
-  }
-  if (namen.length > 1) {
-    throw new Error(
-      `meerdere packs (${namen.join(', ')}) -- geef er één mee: node runner/server.js <naam>`,
-    );
-  }
-  return namen[0];
+  return uit;
 }
 
-let pack;
+let packs = lesPacksIn();
+let pack = null;
+
+function zetActief(naam) {
+  const p = packs.get(naam);
+  if (!p) {
+    throw new Error(`lezing "${naam}" bestaat niet`);
+  }
+  if (p.fout) {
+    throw new Error(`lezing "${naam}" klopt niet: ${p.fout}`);
+  }
+  pack = p;
+  slideOpBarcode.clear();
+  pack.manifest.slides.forEach((slide, i) => {
+    slide.index = i;
+    slideOpBarcode.set(slide.barcode, slide);
+  });
+}
+
+const slideOpBarcode = new Map();
+
 try {
-  const naam = kiesPack();
-  pack = loadPack(path.join(PACKS_DIR, naam));
-  pack.naam = naam;
+  const goede = [...packs.values()].filter(p => !p.fout);
+  if (packs.size === 0) {
+    throw new Error('geen lezingen in runner/packs/ -- maak er een in de editor');
+  }
+  if (packName) {
+    zetActief(packName);
+  } else if (goede.length === 1) {
+    zetActief(goede[0].naam);
+  } else if (goede.length === 0) {
+    throw new Error(
+      'geen enkele lezing klopt:\n    ' +
+        [...packs.values()].map(p => `${p.naam}: ${p.fout}`).join('\n    '),
+    );
+  } else {
+    // Meerdere goede lezingen en geen keuze: pak de eerste, de rest staat in de
+    // editor en de operator klaar om op over te stappen.
+    zetActief(goede[0].naam);
+  }
 } catch (e) {
   console.error('\nKan de lezing niet laden:\n  ' + e.message + '\n');
   process.exit(1);
 }
 
-const slideOpBarcode = new Map();
-pack.manifest.slides.forEach((slide, i) => {
-  slide.index = i;
-  slideOpBarcode.set(slide.barcode, slide);
-});
+/** Na een bewerking in de editor opnieuw inlezen, met de actieve lezing erbij. */
+function herlaad(actief) {
+  packs = lesPacksIn();
+  const naam = actief || (pack && pack.naam);
+  if (packs.has(naam) && !packs.get(naam).fout) {
+    zetActief(naam);
+  }
+}
 
 // --------------------------------------------------------------------- state
 
@@ -298,6 +341,26 @@ function leesJson(req) {
   });
 }
 
+const UPLOAD_MAX = 500 * 1024 * 1024;
+
+/** Ruwe body lezen, voor uploads uit de editor. */
+function leesRuw(req) {
+  return new Promise((resolve, reject) => {
+    const stukken = [];
+    let n = 0;
+    req.on('data', c => {
+      n += c.length;
+      if (n > UPLOAD_MAX) {
+        req.destroy();
+        return reject(new Error('bestand groter dan 500 MB'));
+      }
+      stukken.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(stukken)));
+    req.on('error', reject);
+  });
+}
+
 /** Statisch bestand serveren, nooit buiten `base`. Ondersteunt Range voor video. */
 function stuurBestand(req, res, base, rel) {
   const abs = path.resolve(base, '.' + path.posix.normalize('/' + rel));
@@ -407,6 +470,23 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (p === '/api/pack') {
+    const gevraagd = url.searchParams.get('naam');
+    if (gevraagd) {
+      const doel = packs.get(gevraagd);
+      if (!doel) {
+        return json(res, {fout: `lezing "${gevraagd}" bestaat niet`}, 404);
+      }
+      if (doel.fout) {
+        return json(res, {naam: doel.naam, fout: doel.fout}, 200);
+      }
+      return json(res, {
+        naam: doel.naam,
+        title: doel.manifest.title,
+        version: doel.manifest.version,
+        clearScan: doel.manifest.clearScan,
+        slides: doel.manifest.slides,
+      });
+    }
     return json(res, {
       naam: pack.naam,
       title: pack.manifest.title,
@@ -433,6 +513,193 @@ const server = http.createServer(async (req, res) => {
     return json(res, {app: 'zelfscanner-lezing', pack: pack.naam, ip: lokaalIp(), port});
   }
 
+  // ----------------------------------------------------------------- editor
+
+  if (p === '/api/packs') {
+    return json(res, {
+      actief: pack ? pack.naam : null,
+      packs: [...packs.values()].map(x => ({
+        naam: x.naam,
+        title: x.manifest ? x.manifest.title : '',
+        slides: x.manifest ? x.manifest.slides.length : 0,
+        frames: x.manifest ? x.manifest.slides.reduce((n, s) => n + s.frames.length, 0) : 0,
+        fout: x.fout || null,
+      })),
+    });
+  }
+
+  if (p === '/api/select' && req.method === 'POST') {
+    let body;
+    try {
+      body = await leesJson(req);
+    } catch (e) {
+      return json(res, {ok: false, fout: e.message}, 400);
+    }
+    try {
+      zetActief(String(body.naam || ''));
+    } catch (e) {
+      return json(res, {ok: false, fout: e.message}, 400);
+    }
+    // Van lezing wisselen betekent schoon beginnen: een barcode uit de vorige
+    // lezing mag niet blijven staan.
+    zet(null, 0, 'operator');
+    console.log(`lezing gewisseld naar ${pack.naam}`);
+    return json(res, {ok: true, naam: pack.naam});
+  }
+
+  if (p === '/api/pack/new' && req.method === 'POST') {
+    let body;
+    try {
+      body = await leesJson(req);
+    } catch (e) {
+      return json(res, {ok: false, fout: e.message}, 400);
+    }
+    const naam = String(body.naam || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^[-_]+|[-_]+$/g, '');
+    if (!/^[a-z0-9][a-z0-9_-]{0,39}$/.test(naam)) {
+      return json(res, {ok: false, fout: 'naam mag alleen letters, cijfers, - en _ bevatten'}, 400);
+    }
+    const dir = path.join(PACKS_DIR, naam);
+    if (fs.existsSync(dir)) {
+      return json(res, {ok: false, fout: `lezing "${naam}" bestaat al`}, 400);
+    }
+    fs.mkdirSync(path.join(dir, 'assets'), {recursive: true});
+    // Een nieuwe lezing begint met één lege slide: een manifest zonder slides
+    // is volgens het schema fout, en een editor met niets erin is onhandig.
+    const manifest = {
+      version: '1.0.0',
+      title: String(body.title || naam),
+      slides: [],
+    };
+    fs.writeFileSync(path.join(dir, 'lezing.json'), JSON.stringify(manifest, null, 2) + '\n');
+    herlaad();
+    return json(res, {ok: true, naam});
+  }
+
+  if (p === '/api/pack/save' && req.method === 'POST') {
+    let body;
+    try {
+      body = await leesJson(req);
+    } catch (e) {
+      return json(res, {ok: false, fout: e.message}, 400);
+    }
+    const naam = String(body.naam || '');
+    const doel = packs.get(naam);
+    if (!doel) {
+      return json(res, {ok: false, fout: `lezing "${naam}" bestaat niet`}, 400);
+    }
+    const manifest = body.manifest;
+    // Een lege lijst slides mag tijdens het bewerken, alleen niet om mee te
+    // draaien: anders kan je geen nieuwe lezing opbouwen.
+    const fouten =
+      manifest && Array.isArray(manifest.slides) && manifest.slides.length === 0
+        ? []
+        : validateManifest(manifest, doel.dir);
+    if (fouten.length) {
+      return json(res, {ok: false, fout: 'klopt niet', fouten}, 400);
+    }
+    fs.writeFileSync(path.join(doel.dir, 'lezing.json'), JSON.stringify(manifest, null, 2) + '\n');
+    const wasActief = pack && pack.naam === naam;
+    herlaad(wasActief ? naam : null);
+    if (wasActief) {
+      // De pagina's moeten de nieuwe inhoud zien. Staat de barcode die in beeld
+      // stond er nog, dan blijft hij staan; anders wordt het scherm leeg.
+      const nog = slideOpBarcode.get(state.barcode);
+      zet(nog ? state.barcode : null, nog ? Math.min(state.frameIndex, nog.frames.length - 1) : 0, 'operator');
+    }
+    return json(res, {ok: true});
+  }
+
+  if (p === '/api/upload' && req.method === 'POST') {
+    const naam = url.searchParams.get('pack') || (pack && pack.naam);
+    const doel = packs.get(naam);
+    if (!doel) {
+      return json(res, {ok: false, fout: `lezing "${naam}" bestaat niet`}, 400);
+    }
+    const bestandsnaam = String(url.searchParams.get('name') || '');
+    const soort = kindForFile(bestandsnaam);
+    if (!soort) {
+      return json(
+        res,
+        {ok: false, fout: `"${bestandsnaam}" is geen afbeelding, video of html-pagina`},
+        400,
+      );
+    }
+    let data;
+    try {
+      data = await leesRuw(req);
+    } catch (e) {
+      return json(res, {ok: false, fout: e.message}, 400);
+    }
+    if (data.length === 0) {
+      return json(res, {ok: false, fout: 'leeg bestand'}, 400);
+    }
+
+    const map = {image: 'images', video: 'videos', page: 'pages'}[soort];
+    const mapAbs = path.join(doel.dir, 'assets', map);
+    fs.mkdirSync(mapAbs, {recursive: true});
+
+    // Hetzelfde bestand twee keer uploaden levert geen tweede kopie op: bij
+    // gelijke inhoud hergebruiken we wat er al staat. Zo blijft een lezing met
+    // dezelfde flyer in twee slides klein.
+    const hash = crypto.createHash('sha256').update(data).digest('hex');
+    for (const bestaand of fs.readdirSync(mapAbs)) {
+      const abs = path.join(mapAbs, bestaand);
+      if (!fs.statSync(abs).isFile()) {
+        continue;
+      }
+      if (fs.statSync(abs).size !== data.length) {
+        continue;
+      }
+      const h = crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+      if (h === hash) {
+        return json(res, {
+          ok: true,
+          src: `assets/${map}/${bestaand}`,
+          type: soort,
+          hergebruikt: true,
+        });
+      }
+    }
+
+    const ext = path.extname(bestandsnaam).toLowerCase();
+    let basis = path
+      .basename(bestandsnaam, path.extname(bestandsnaam))
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'bestand';
+    let kies = basis + ext;
+    let n = 2;
+    while (fs.existsSync(path.join(mapAbs, kies))) {
+      kies = `${basis}-${n++}${ext}`;
+    }
+    fs.writeFileSync(path.join(mapAbs, kies), data);
+    console.log(`upload ${naam}: ${map}/${kies} (${Math.round(data.length / 1024)} kB)`);
+    return json(res, {ok: true, src: `assets/${map}/${kies}`, type: soort, hergebruikt: false});
+  }
+
+  // Bestanden van een willekeurige lezing, voor de preview in de editor. De
+  // schermpagina gebruikt /assets/, dat is altijd de lezing die nu draait.
+  if (p.startsWith('/packs/')) {
+    const rest = p.slice('/packs/'.length);
+    const schuin = rest.indexOf('/');
+    if (schuin > 0) {
+      const doel = packs.get(rest.slice(0, schuin));
+      if (doel) {
+        return stuurBestand(req, res, doel.dir, rest.slice(schuin));
+      }
+    }
+    return json(res, {fout: 'niet gevonden'}, 404);
+  }
+
+  if (p === '/editor') {
+    return stuurBestand(req, res, PUBLIC_DIR, '/editor.html');
+  }
+
   if (p.startsWith('/assets/')) {
     return stuurBestand(req, res, pack.dir, p);
   }
@@ -452,9 +719,16 @@ server.listen(port, () => {
   const frames = pack.manifest.slides.reduce((n, s) => n + s.frames.length, 0);
   console.log('');
   console.log(`  Lezing:   ${pack.manifest.title || pack.naam} (${pack.manifest.slides.length} slides, ${frames} frames)`);
+  const andere = [...packs.values()].filter(x => x.naam !== pack.naam);
+  if (andere.length) {
+    console.log(
+      `  Ook klaar: ${andere.map(x => x.naam + (x.fout ? ' (klopt niet)' : '')).join(', ')}`,
+    );
+  }
   console.log('');
   console.log(`  Operator: http://localhost:${port}/`);
   console.log(`  Scherm:   http://localhost:${port}/show`);
+  console.log(`  Editor:   http://localhost:${port}/editor`);
   console.log(`  Scanner:  http://${ip}:${port}/api/scan   (of via usb: http://127.0.0.1:${port})`);
   console.log('');
 });

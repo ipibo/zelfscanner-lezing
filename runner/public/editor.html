@@ -98,6 +98,33 @@
     text-align: center; color: var(--zacht); font-size: 14px; cursor: pointer; }
   #dropzone.over { border-color: var(--accent); color: var(--accent); background: #22241c; }
 
+  /* --------------------------------------------------------- naar de scanner */
+  #scannerLaag { position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6); display: none; align-items: center;
+    justify-content: center; z-index: 20; }
+  #scannerLaag.toon { display: flex; }
+  #scannerVak { background: var(--paneel); border: 1px solid var(--rand);
+    border-radius: 12px; padding: 20px; width: 520px; max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 60px); overflow-y: auto; }
+  #scannerVak h3 { margin: 0 0 10px; font-size: 17px; }
+  #scannerVak .uitleg { color: var(--zacht); font-size: 13px; margin: 0 0 16px; }
+  .device { display: flex; align-items: center; gap: 10px; border: 1px solid var(--rand);
+    border-radius: 8px; padding: 9px 12px; margin-bottom: 7px; cursor: pointer; }
+  .device.actief { border-color: var(--accent); background: #2a2a20; }
+  .device.kan-niet { opacity: 0.45; cursor: default; }
+  .device .model { font-weight: 600; }
+  .device .serial { color: var(--zacht); font-family: ui-monospace, Menlo, monospace;
+    font-size: 12px; }
+  .device .rek { flex: 1; }
+  .device .merk { font-size: 11px; color: var(--zacht); }
+  #ookDraaienRegel { display: block; margin: 14px 0 6px; font-size: 14px; color: var(--tekst); }
+  #ookDraaienRegel .uitleg2 { display: block; margin-left: 24px; color: var(--zacht); font-size: 12px; }
+  #pushUitvoer { background: var(--veld); border: 1px solid var(--rand); border-radius: 8px;
+    padding: 10px; font-size: 12px; line-height: 1.45; white-space: pre-wrap;
+    max-height: 220px; overflow-y: auto; display: none; margin: 14px 0 0; }
+  #pushUitvoer.toon { display: block; }
+  .knoppenrij { display: flex; justify-content: flex-end; gap: 9px; margin-top: 16px; }
+
   /* ------------------------------------------------------------- fouten */
   #fouten { border-top: 1px solid var(--rand); background: #251a1a; padding: 10px 16px;
     color: #ffb3ab; font-size: 13px; display: none; }
@@ -115,6 +142,7 @@
     <span id="opslaanStatus">opgeslagen</span>
     <button id="opslaan" class="primair">Opslaan</button>
     <button id="draaien" title="deze lezing op het scherm zetten">Deze draaien</button>
+    <button id="naarScanner" title="deze lezing naar de zelfscanner sturen">Naar de scanner</button>
     <a class="knop" href="/barcodes" target="_blank">Barcodes</a>
     <a class="knop" href="/" target="_blank">Operator</a>
     <a class="knop" href="/show" target="_blank">Scherm</a>
@@ -137,6 +165,28 @@
 
 <input type="file" id="bestandKiezer" multiple style="display: none"
        accept="image/*,video/*,.html,.htm">
+
+<div id="scannerLaag">
+  <div id="scannerVak">
+    <h3>Naar de scanner</h3>
+    <p class="uitleg">
+      Alleen de lezing en de notes gaan naar het apparaat, een paar kilobyte.
+      De media blijven hier, want die gaan naar de beamer. De app herstart
+      zichzelf met de nieuwe lezing.
+    </p>
+    <div id="deviceLijst">zoeken naar apparaten…</div>
+    <label id="ookDraaienRegel">
+      <input type="checkbox" id="ookDraaien" checked>
+      ook op de beamer zetten
+      <span class="uitleg2">anders horen de notes op de scanner bij een andere lezing dan het scherm laat zien</span>
+    </label>
+    <pre id="pushUitvoer"></pre>
+    <div class="knoppenrij">
+      <button id="scannerSluit">Sluiten</button>
+      <button id="scannerPush" class="primair">Versturen</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (function () {
@@ -621,6 +671,88 @@
 
   window.addEventListener('beforeunload', function (e) {
     if (vuil) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // --------------------------------------------------------- naar de scanner
+  var gekozenDevice = null;
+
+  function toonDevices() {
+    var box = el('deviceLijst');
+    box.textContent = 'zoeken naar apparaten…';
+    gekozenDevice = null;
+    fetch('/api/devices').then(function (r) { return r.json(); }).then(function (j) {
+      box.innerHTML = '';
+      if (!j.ok) {
+        box.innerHTML = '<div class="uitleg">' + j.fout + '</div>';
+        return;
+      }
+      if (!j.devices.length) {
+        box.innerHTML = '<div class="uitleg">Geen apparaat aangesloten. ' +
+          'Hang de scanner aan de usb-kabel of verbind hem over wifi.</div>';
+        return;
+      }
+      j.devices.forEach(function (d) {
+        var rij = document.createElement('div');
+        rij.className = 'device' + (d.appGeinstalleerd ? '' : ' kan-niet');
+        rij.innerHTML = '<div><div class="model">' + d.model + '</div>' +
+          '<div class="serial">' + d.serial + '</div></div><div class="rek"></div>' +
+          '<div class="merk">' + (d.appGeinstalleerd ? '' : 'app staat er niet op') + '</div>';
+        if (d.appGeinstalleerd) {
+          rij.addEventListener('click', function () {
+            gekozenDevice = d.serial;
+            var alle = box.querySelectorAll('.device');
+            for (var i = 0; i < alle.length; i++) {
+              alle[i].className = 'device';
+            }
+            rij.className = 'device actief';
+            el('scannerPush').disabled = false;
+          });
+        }
+        box.appendChild(rij);
+      });
+      // Staat er maar één bruikbaar apparaat, kies dat meteen.
+      var bruikbaar = j.devices.filter(function (d) { return d.appGeinstalleerd; });
+      if (bruikbaar.length === 1) {
+        box.querySelector('.device:not(.kan-niet)').click();
+      }
+    });
+  }
+
+  el('naarScanner').addEventListener('click', function () {
+    if (vuil && !confirm('Je hebt niet-opgeslagen wijzigingen. Die gaan niet mee. Toch versturen?')) {
+      return;
+    }
+    el('scannerLaag').className = 'toon';
+    el('pushUitvoer').className = '';
+    el('pushUitvoer').textContent = '';
+    el('scannerPush').disabled = true;
+    el('ookDraaien').checked = naam !== actiefDraait;
+    toonDevices();
+  });
+
+  el('scannerSluit').addEventListener('click', function () {
+    el('scannerLaag').className = '';
+  });
+
+  el('scannerLaag').addEventListener('click', function (e) {
+    if (e.target === el('scannerLaag')) { el('scannerLaag').className = ''; }
+  });
+
+  el('scannerPush').addEventListener('click', function () {
+    if (!gekozenDevice) { return; }
+    var uitvoer = el('pushUitvoer');
+    uitvoer.className = 'toon';
+    uitvoer.textContent = 'versturen…';
+    el('scannerPush').disabled = true;
+    post('/api/push', {
+      naam: naam,
+      device: gekozenDevice,
+      ookDraaien: el('ookDraaien').checked,
+    }).then(function (j) {
+      uitvoer.textContent = (j.tekst || '') + (j.ok ? '' : '\n\nMISLUKT: ' + (j.fout || j.tekst));
+      el('scannerPush').disabled = false;
+      if (j.ok) { laadLezingen().then(tekenSlide); }
+    });
   });
 
   // --------------------------------------------------------------------- start

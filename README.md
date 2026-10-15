@@ -27,6 +27,17 @@ Of zonder naam, als er maar één lezing is. Daarna:
 
 De zelfscanner POST straks naar `http://<ip>:8080/api/scan`.
 
+**Een lezing naar de zelfscanner sturen:** in de editor op "Naar de scanner".
+Die laat de aangesloten apparaten zien, stuurt de lezing en de notes erheen (een
+paar kilobyte, de media blijven hier) en herstart de app. Met het vinkje "ook op
+de beamer zetten" gaat de runner meteen dezelfde lezing draaien, anders horen de
+notes in de sprekers hand bij iets anders dan het scherm laat zien.
+
+Daarvoor roept de runner het push-script aan van het app-project, dat hij naast
+zichzelf verwacht (`../zelfscanner-lezing-app`, of `LEZING_APP_DIR`). Staat dat
+er niet, dan zegt de knop dat. De twee projecten blijven los van elkaar: dit is
+een aanroep van een tool, geen afhankelijkheid in de code.
+
 **Zonder device testen:** hang een barcodescanner aan de laptop, zet op de
 operator-pagina "Scanner-test" aan en scan. Die toetsaanslagen gaan dan naar
 dezelfde `/api/scan` als straks vanaf het device.

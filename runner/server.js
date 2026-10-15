@@ -28,6 +28,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
+const {execFile} = require('child_process');
 const {loadPack, validateManifest, kindForFile} = require('../shared/manifest-schema');
 
 const ROOT = __dirname;
@@ -420,6 +421,81 @@ function stuurBestand(req, res, base, rel) {
   });
 }
 
+// ------------------------------------------------------------- naar de scanner
+//
+// De app voor het device is een eigen project (zie docs/05): de runner bouwt
+// hem niet en kent zijn code niet. Wat we hier wél doen is zijn push-script
+// aanroepen, zodat de spreker niet in een terminal hoeft. Staat dat project er niet,
+// dan zegt de knop dat gewoon.
+
+const APP_DIR =
+  process.env.LEZING_APP_DIR || path.resolve(ROOT, '..', '..', 'zelfscanner-lezing-app');
+const PUSH_SCRIPT = path.join(APP_DIR, 'tools', 'push-pack.js');
+const APP_PACKAGE = 'com.zelfscannerlezing';
+
+let adbPad = null;
+
+function vindAdb() {
+  if (adbPad !== null) {
+    return adbPad;
+  }
+  const kandidaten = [
+    process.env.ADB,
+    'adb',
+    '/opt/homebrew/bin/adb',
+    '/usr/local/bin/adb',
+    path.join(os.homedir(), 'Library/Android/sdk/platform-tools/adb'),
+  ].filter(Boolean);
+  for (const kandidaat of kandidaten) {
+    try {
+      require('child_process').execFileSync(kandidaat, ['version'], {stdio: 'ignore'});
+      adbPad = kandidaat;
+      return adbPad;
+    } catch (e) {
+      // volgende proberen
+    }
+  }
+  adbPad = false;
+  return false;
+}
+
+function adbUit(args, timeout) {
+  return new Promise(resolve => {
+    const bin = vindAdb();
+    if (!bin) {
+      return resolve('');
+    }
+    execFile(bin, args, {timeout: timeout || 5000}, (err, stdout) => {
+      resolve(err ? '' : String(stdout));
+    });
+  });
+}
+
+/** Aangesloten devices, met model en of de lezing-app erop staat. */
+async function zoekDevices() {
+  const uit = await adbUit(['devices']);
+  const serials = uit
+    .split('\n')
+    .slice(1)
+    .map(r => r.trim())
+    .filter(r => r && r.endsWith('device'))
+    .map(r => r.split(/\s+/)[0]);
+
+  return Promise.all(
+    serials.map(async serial => {
+      const [model, pakketten] = await Promise.all([
+        adbUit(['-s', serial, 'shell', 'getprop', 'ro.product.model']),
+        adbUit(['-s', serial, 'shell', 'pm', 'list', 'packages', APP_PACKAGE]),
+      ]);
+      return {
+        serial,
+        model: model.trim() || 'onbekend',
+        appGeinstalleerd: pakketten.indexOf(APP_PACKAGE) >= 0,
+      };
+    }),
+  );
+}
+
 // -------------------------------------------------------------------- routes
 
 const server = http.createServer(async (req, res) => {
@@ -535,6 +611,80 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ----------------------------------------------------------------- editor
+
+  if (p === '/api/devices') {
+    if (!vindAdb()) {
+      return json(res, {ok: false, fout: 'adb niet gevonden', devices: []});
+    }
+    if (!fs.existsSync(PUSH_SCRIPT)) {
+      return json(res, {
+        ok: false,
+        fout: `het app-project staat niet op ${APP_DIR} -- zet LEZING_APP_DIR goed`,
+        devices: [],
+      });
+    }
+    const devices = await zoekDevices();
+    return json(res, {ok: true, devices});
+  }
+
+  if (p === '/api/push' && req.method === 'POST') {
+    let body;
+    try {
+      body = await leesJson(req);
+    } catch (e) {
+      return json(res, {ok: false, fout: e.message}, 400);
+    }
+    const doel = packs.get(String(body.naam || ''));
+    if (!doel || doel.fout) {
+      return json(res, {ok: false, fout: 'kies een lezing die klopt'}, 400);
+    }
+    if (!fs.existsSync(PUSH_SCRIPT)) {
+      return json(res, {ok: false, fout: `geen push-script op ${PUSH_SCRIPT}`}, 400);
+    }
+    // Het serienummer komt uit onze eigen lijst, nooit rechtstreeks uit de
+    // pagina: dit gaat naar een commando.
+    const devices = await zoekDevices();
+    const gekozen = devices.find(d => d.serial === String(body.device || ''));
+    if (!gekozen) {
+      return json(res, {ok: false, fout: 'dat device is niet (meer) aangesloten'}, 400);
+    }
+
+    if (body.ookDraaien) {
+      try {
+        zetActief(doel.naam);
+        zet(null, 0, 'operator');
+      } catch (e) {
+        return json(res, {ok: false, fout: e.message}, 400);
+      }
+    }
+
+    const argumenten = [PUSH_SCRIPT, doel.dir, '--device', gekozen.serial];
+    if (body.runner) {
+      argumenten.push('--runner', String(body.runner));
+    }
+    const uitvoer = await new Promise(resolve => {
+      execFile(
+        process.execPath,
+        argumenten,
+        {cwd: APP_DIR, timeout: 120000},
+        (err, stdout, stderr) => {
+          resolve({
+            ok: !err,
+            tekst: String(stdout || '') + String(stderr || ''),
+            fout: err ? err.message : null,
+          });
+        },
+      );
+    });
+    console.log(`push ${doel.naam} -> ${gekozen.serial}: ${uitvoer.ok ? 'ok' : 'MISLUKT'}`);
+    return json(res, {
+      ok: uitvoer.ok,
+      tekst: uitvoer.tekst,
+      fout: uitvoer.fout,
+      device: gekozen,
+      draait: pack ? pack.naam : null,
+    });
+  }
 
   if (p === '/api/packs') {
     return json(res, {

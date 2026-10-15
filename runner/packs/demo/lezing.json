@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "title": "Demo-lezing",
+  "clearScan": "8712345679999",
+  "slides": [
+    {
+      "barcode": "4019787601948",
+      "label": "schroeven",
+      "note": "Dit is een afbeelding van schroeven.<br>Scan hierna de flyers.",
+      "frames": [
+        { "src": "assets/01-schroeven.svg" }
+      ]
+    },
+    {
+      "barcode": "8718781601171",
+      "label": "flyers",
+      "note": "To whom the concept of self-service was communicated via promotional flyers.<br>again, GUACAMOLEMIX",
+      "frames": [
+        { "src": "assets/02-flyer-a.svg" },
+        { "src": "assets/03-flyer-b.svg", "note": "Tweede flyer.<br>Scan nog een keer en je bent weer bij de eerste." }
+      ]
+    },
+    {
+      "barcode": "8710400186601",
+      "label": "html-pagina",
+      "note": "Een eigen html-pagina als slide.",
+      "frames": [
+        { "src": "assets/04-pagina.html" }
+      ]
+    },
+    {
+      "barcode": "8711000003411",
+      "label": "video",
+      "note": "Video met geluid. Klik op het scherm één keer om te starten, anders blokkeert de browser het geluid.",
+      "frames": [
+        { "src": "assets/05-video.mp4" }
+      ]
+    }
+  ]
+}

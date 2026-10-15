@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lezing — scherm</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+  #slide { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+  #slide img, #slide video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  #slide iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+  /* Startoverlay: één klik zet het scherm beeldvullend en geeft de browser de
+     gebruikersactie die hij wil hebben voordat video met geluid mag spelen. */
+  #start { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10;
+    background: #000; color: #eee; font: 400 24px/1.5 Helvetica, sans-serif;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    cursor: pointer; }
+  #start.weg { display: none; }
+  #start b { display: block; font-size: 40px; margin-bottom: 12px; }
+  #start span { opacity: 0.55; font-size: 17px; display: block; margin-top: 18px; }
+
+  /* Verbindingslampje. Alleen te zien als de verbinding wég is, en klein genoeg
+     om in de zaal niet op te vallen. 'd' zet het helemaal uit. */
+  #link { position: absolute; right: 10px; bottom: 10px; width: 10px; height: 10px;
+    border-radius: 50%; background: #c0392b; z-index: 20; display: none;
+    box-shadow: 0 0 10px rgba(192,57,43,0.9); }
+  #link.toon { display: block; }
+</style>
+</head>
+<body>
+  <div id="slide"></div>
+  <div id="link"></div>
+  <div id="start">
+    <div>
+      <b>Lezing</b>
+      Klik om beeldvullend te starten
+      <span>Eén klik is ook nodig voordat video met geluid mag spelen</span>
+    </div>
+  </div>
+
+<script>
+(function () {
+  var slideEl = document.getElementById('slide');
+  var startEl = document.getElementById('start');
+  var linkEl = document.getElementById('link');
+
+  var huidigeSrc = null;   // wat er nu in beeld staat
+  var huidigeTeller = -1;  // teller van de server, loopt op bij elke wijziging
+  var lampjeUit = false;
+  var offlineTimer = null;
+
+  startEl.addEventListener('click', function () {
+    startEl.className = 'weg';
+    var el = document.documentElement;
+    var fs = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (fs) {
+      try { fs.call(el, {navigationUI: 'hide'}); } catch (e) { try { fs.call(el); } catch (e2) {} }
+    }
+    // De klik geldt als gebruikersactie: een video die nu al in beeld staat mag
+    // daarna met geluid spelen.
+    var v = slideEl.querySelector('video');
+    if (v) { v.play(); }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'd') {
+      lampjeUit = !lampjeUit;
+      if (lampjeUit) { linkEl.className = ''; }
+    }
+    if (e.key === 'f') { startEl.click(); }
+  });
+
+  function render(stand) {
+    // Niets in beeld
+    if (!stand.frame) {
+      slideEl.innerHTML = '';
+      huidigeSrc = null;
+      return;
+    }
+
+    var src = stand.frame.src;
+    var zelfde = src === huidigeSrc;
+
+    if (zelfde) {
+      // Zelfde bestand, maar de server meldt een nieuwe scan: video opnieuw
+      // vanaf het begin, een afbeelding hoeft niets te doen.
+      var v = slideEl.querySelector('video');
+      if (v) { try { v.currentTime = 0; } catch (e) {} v.play(); }
+      return;
+    }
+
+    var el;
+    if (stand.frame.type === 'image') {
+      el = document.createElement('img');
+      el.alt = '';
+      el.src = src;
+    } else if (stand.frame.type === 'video') {
+      el = document.createElement('video');
+      el.src = src;
+      el.autoplay = true;
+      el.loop = true; // zoals de oude show.html; later eventueel per frame instelbaar
+      el.playsInline = true;
+      el.setAttribute('playsinline', '');
+    } else {
+      el = document.createElement('iframe');
+      el.src = src;
+      el.setAttribute('frameborder', '0');
+      el.setAttribute('allow', 'autoplay; fullscreen');
+    }
+
+    slideEl.innerHTML = '';
+    slideEl.appendChild(el);
+    huidigeSrc = src;
+  }
+
+  function verbindingGoed(goed) {
+    if (goed) {
+      if (offlineTimer) { clearTimeout(offlineTimer); offlineTimer = null; }
+      linkEl.className = '';
+      return;
+    }
+    // Pas na drie seconden klagen: een korte hapering lost zichzelf op. De
+    // timer NIET opnieuw starten bij elke mislukte poging -- EventSource
+    // probeert elke 2 s opnieuw en dan zou een 3-secondentimer nooit aflopen
+    // en het lampje dus nooit aangaan.
+    if (offlineTimer) { return; }
+    offlineTimer = setTimeout(function () {
+      offlineTimer = null;
+      if (!lampjeUit) { linkEl.className = 'toon'; }
+    }, 3000);
+  }
+
+  // EventSource doet de reconnect zelf, met het retry-interval van de server.
+  // Daarom staat hier geen eigen backoff-lus: wat er in beeld staat blijft
+  // staan tot de verbinding terug is.
+  var bron = new EventSource('/api/events');
+  bron.onopen = function () { verbindingGoed(true); };
+  bron.onerror = function () { verbindingGoed(false); };
+  bron.onmessage = function (e) {
+    var stand;
+    try { stand = JSON.parse(e.data); } catch (err) { return; }
+    verbindingGoed(true);
+    if (stand.teller === huidigeTeller) { return; }
+    huidigeTeller = stand.teller;
+    render(stand);
+  };
+})();
+</script>
+</body>
+</html>

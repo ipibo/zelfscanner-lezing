@@ -1,0 +1,14 @@
+{
+  "name": "zelfscanner-lezing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dashboard, runner en pack-formaat voor de lezing met de zelfscanner",
+  "scripts": {
+    "start": "node runner/server.js",
+    "check": "node tools/check-pack.js",
+    "convert": "node tools/convert-oude-database.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

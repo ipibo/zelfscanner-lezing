@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+dist/
+
+# Media van echte lezingen blijft buiten git (groot, en het komt straks uit het
+# dashboard). Het demo-pack gaat wel mee, zodat de runner direct te testen is.
+runner/packs/*/assets/*
+!runner/packs/demo/assets/*

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lezing — operator</title>
+<style>
+  :root {
+    --bg: #15171a; --paneel: #1d2024; --rand: #2b3036; --tekst: #e8eaed;
+    --zacht: #9aa3ad; --accent: #ffd166; --goed: #2ecc71; --fout: #e74c3c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--tekst);
+    font: 15px/1.5 -apple-system, Helvetica, sans-serif; }
+  #layout { display: flex; height: 100%; }
+
+  #lijst { width: 320px; min-width: 260px; background: var(--paneel);
+    border-right: 1px solid var(--rand); overflow-y: auto; padding: 14px; }
+  #lijst h1 { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--zacht); margin: 0 0 12px; }
+  .slide { border: 1px solid var(--rand); border-radius: 8px; padding: 10px 12px;
+    margin-bottom: 8px; cursor: pointer; background: #22262b; }
+  .slide:hover { border-color: #3d444c; }
+  .slide.actief { border-color: var(--accent); background: #2a2a20; }
+  .slide .code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  .slide .label { color: var(--zacht); font-size: 12px; margin-top: 2px; }
+  .frames { display: flex; gap: 4px; margin-top: 8px; }
+  .frame { flex: 1; height: 26px; border: 1px solid var(--rand); border-radius: 5px;
+    font-size: 11px; color: var(--zacht); display: flex; align-items: center;
+    justify-content: center; background: #1a1d21; }
+  .frame:hover { border-color: #4a525b; color: var(--tekst); }
+  .frame.actief { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+
+  #rechts { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  #balk { display: flex; align-items: center; gap: 14px; padding: 12px 18px;
+    border-bottom: 1px solid var(--rand); flex-wrap: wrap; }
+  .stat { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--zacht); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #555; }
+  .dot.goed { background: var(--goed); }
+  .dot.fout { background: var(--fout); }
+  #balk .rek { flex: 1; }
+  a.knop, button {
+    font: inherit; font-size: 14px; color: var(--tekst); background: #272b31;
+    border: 1px solid var(--rand); border-radius: 7px; padding: 7px 14px;
+    cursor: pointer; text-decoration: none; display: inline-block;
+  }
+  button:hover, a.knop:hover { background: #30353c; }
+  button.primair { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+  button.primair:hover { filter: brightness(1.08); }
+
+  #midden { flex: 1; padding: 18px; overflow-y: auto; min-height: 0; }
+  #nu { font-size: 13px; color: var(--zacht); margin-bottom: 6px; }
+  #nuTitel { font-size: 26px; font-weight: 600; margin-bottom: 4px; }
+  #nuCode { font-family: ui-monospace, Menlo, monospace; color: var(--zacht); margin-bottom: 18px; }
+  #noteKop { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--zacht); margin-bottom: 8px; }
+  #note { background: var(--paneel); border: 1px solid var(--rand); border-radius: 10px;
+    padding: 18px 20px; font-size: 20px; line-height: 1.55; min-height: 90px; }
+  #note.leeg { color: #5f666e; font-size: 15px; }
+
+  #onder { border-top: 1px solid var(--rand); padding: 12px 18px; display: flex;
+    align-items: center; gap: 10px; flex-wrap: wrap; }
+  #onder input { font: inherit; background: #101216; color: var(--tekst);
+    border: 1px solid var(--rand); border-radius: 7px; padding: 7px 11px; width: 190px;
+    font-family: ui-monospace, Menlo, monospace; }
+  .hint { color: #5f666e; font-size: 12px; }
+  #melding { color: var(--fout); font-size: 13px; min-height: 18px; padding: 0 18px 10px; }
+</style>
+</head>
+<body>
+<div id="layout">
+  <div id="lijst">
+    <h1>Slides</h1>
+    <div id="slides"></div>
+  </div>
+
+  <div id="rechts">
+    <div id="balk">
+      <div class="stat"><span class="dot" id="dotLink"></span><span id="txtLink">verbinden…</span></div>
+      <div class="stat"><span class="dot" id="dotScherm"></span><span id="txtScherm">scherm</span></div>
+      <div class="stat"><span class="dot" id="dotScanner"></span><span id="txtScanner">scanner</span></div>
+      <div class="rek"></div>
+      <a class="knop" id="openScherm" href="/show" target="_blank">Scherm openen</a>
+    </div>
+
+    <div id="midden">
+      <div id="nu">In beeld</div>
+      <div id="nuTitel">—</div>
+      <div id="nuCode"></div>
+      <div id="noteKop">Note op de scanner</div>
+      <div id="note" class="leeg">—</div>
+    </div>
+
+    <div id="melding"></div>
+
+    <div id="onder">
+      <button id="vorige">← Vorige</button>
+      <button id="volgende" class="primair">Volgende →</button>
+      <button id="leeg">Scherm leeg (b)</button>
+      <input id="barcode" placeholder="barcode + Enter" inputmode="numeric">
+      <span class="hint">Pijltjes of spatie werken ook. Scan-url: <span id="scanUrl">—</span></span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var pack = null;
+  var stand = null;
+
+  var el = function (id) { return document.getElementById(id); };
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body || {}),
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      el('melding').textContent = j && j.ok === false ? (j.fout || 'mislukt') : '';
+      return j;
+    }).catch(function (e) {
+      el('melding').textContent = 'runner niet bereikbaar: ' + e.message;
+    });
+  }
+
+  function cmd(c, extra) { return post('/api/command', Object.assign({cmd: c}, extra || {})); }
+
+  // ------------------------------------------------------------- slidelijst
+  function bouwLijst() {
+    var box = el('slides');
+    box.innerHTML = '';
+    pack.slides.forEach(function (slide, i) {
+      var div = document.createElement('div');
+      div.className = 'slide';
+      div.dataset.barcode = slide.barcode;
+
+      var code = document.createElement('div');
+      code.className = 'code';
+      code.textContent = (i + 1) + '. ' + slide.barcode;
+      div.appendChild(code);
+
+      if (slide.label) {
+        var label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = slide.label;
+        div.appendChild(label);
+      }
+
+      var frames = document.createElement('div');
+      frames.className = 'frames';
+      slide.frames.forEach(function (frame, j) {
+        var f = document.createElement('div');
+        f.className = 'frame';
+        f.dataset.index = String(j);
+        f.textContent = (slide.frames.length > 1 ? (j + 1) + ' · ' : '') + frame.type;
+        f.title = frame.src;
+        f.addEventListener('click', function (e) {
+          e.stopPropagation();
+          cmd('goto', {barcode: slide.barcode, frameIndex: j});
+        });
+        frames.appendChild(f);
+      });
+      div.appendChild(frames);
+
+      div.addEventListener('click', function () {
+        cmd('goto', {barcode: slide.barcode, frameIndex: 0});
+      });
+      box.appendChild(div);
+    });
+  }
+
+  function markeerLijst() {
+    var kinderen = el('slides').children;
+    for (var i = 0; i < kinderen.length; i++) {
+      var div = kinderen[i];
+      var actief = stand && div.dataset.barcode === stand.barcode;
+      div.className = 'slide' + (actief ? ' actief' : '');
+      var frames = div.querySelectorAll('.frame');
+      for (var j = 0; j < frames.length; j++) {
+        frames[j].className =
+          'frame' + (actief && Number(frames[j].dataset.index) === stand.frameIndex ? ' actief' : '');
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------ status
+  function toonStand() {
+    if (!stand || !stand.barcode) {
+      el('nuTitel').textContent = 'Scherm leeg';
+      el('nuCode').textContent = '';
+      el('note').textContent = '—';
+      el('note').className = 'leeg';
+      markeerLijst();
+      return;
+    }
+    var slide = null;
+    for (var i = 0; i < pack.slides.length; i++) {
+      if (pack.slides[i].barcode === stand.barcode) { slide = pack.slides[i]; }
+    }
+    var naam = (slide && slide.label) || (stand.frame ? stand.frame.src.split('/').pop() : '');
+    el('nuTitel').textContent =
+      naam + (stand.frameCount > 1 ? '  (frame ' + (stand.frameIndex + 1) + ' van ' + stand.frameCount + ')' : '');
+    el('nuCode').textContent =
+      stand.barcode + '   ' + (stand.frame ? stand.frame.type + ' · ' + stand.frame.src : '') +
+      '   via ' + (stand.bron === 'scan' ? 'scan' : stand.bron === 'operator' ? 'laptop' : 'start');
+    // De note mag html bevatten (de spreker gebruikt <br>), net als op de scanner.
+    el('note').innerHTML = stand.note || '—';
+    el('note').className = stand.note ? '' : 'leeg';
+    markeerLijst();
+  }
+
+  function zetDot(id, txtId, goed, tekst) {
+    el(id).className = 'dot' + (goed === null ? '' : goed ? ' goed' : ' fout');
+    el(txtId).textContent = tekst;
+  }
+
+  // ------------------------------------------------------------------ events
+  var bron = new EventSource('/api/events');
+  bron.onopen = function () { zetDot('dotLink', 'txtLink', true, 'runner verbonden'); };
+  bron.onerror = function () { zetDot('dotLink', 'txtLink', false, 'runner weg — opnieuw proberen'); };
+  bron.onmessage = function (e) {
+    try { stand = JSON.parse(e.data); } catch (err) { return; }
+    if (pack) { toonStand(); }
+  };
+
+  // Het aantal aangesloten schermen en wanneer de scanner zich voor het laatst
+  // meldde komen uit /api/state: dat zijn geen statewijzigingen, dus die horen
+  // niet in de event-stroom.
+  function pollStatus() {
+    fetch('/api/state').then(function (r) { return r.json(); }).then(function (j) {
+      // De operator-pagina hangt er zelf ook aan, dus één client is nog geen scherm.
+      var schermen = Math.max(0, (j.schermen || 0) - 1);
+      zetDot('dotScherm', 'txtScherm', schermen > 0,
+        schermen > 0 ? schermen + ' scherm' + (schermen > 1 ? 'en' : '') + ' open' : 'geen scherm open');
+      var ms = j.scannerLaatstGezien;
+      if (ms === null || ms === undefined) {
+        zetDot('dotScanner', 'txtScanner', null, 'scanner: nog niets gescand');
+      } else if (ms < 120000) {
+        zetDot('dotScanner', 'txtScanner', true, 'scanner: ' + Math.round(ms / 1000) + 's geleden');
+      } else {
+        zetDot('dotScanner', 'txtScanner', false,
+          'scanner: ' + Math.round(ms / 60000) + ' min geleden');
+      }
+    }).catch(function () {});
+  }
+  setInterval(pollStatus, 2000);
+
+  // ------------------------------------------------------------------- knoppen
+  el('volgende').addEventListener('click', function () { cmd('next'); });
+  el('vorige').addEventListener('click', function () { cmd('prev'); });
+  el('leeg').addEventListener('click', function () { cmd('blank'); });
+
+  el('barcode').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') { return; }
+    var code = el('barcode').value.trim();
+    if (code) {
+      cmd('goto', {barcode: code, frameIndex: 0});
+      el('barcode').value = '';
+    }
+  });
+
+  // Pijltjes werken altijd, behalve als je in het barcodeveld staat. Zo kan de
+  // lezing van de laptop af gedraaid worden als de scanner eruit ligt.
+  document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.tagName === 'INPUT') { return; }
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault(); cmd('next');
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault(); cmd('prev');
+    } else if (e.key === 'b') {
+      cmd('blank');
+    }
+  });
+
+  // --------------------------------------------------------------------- start
+  fetch('/api/pack').then(function (r) { return r.json(); }).then(function (j) {
+    pack = j;
+    document.title = (j.title || j.naam) + ' — operator';
+    bouwLijst();
+    if (stand) { toonStand(); }
+    pollStatus();
+  });
+  fetch('/api/hello').then(function (r) { return r.json(); }).then(function (j) {
+    el('scanUrl').textContent = 'http://' + j.ip + ':' + j.port;
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>

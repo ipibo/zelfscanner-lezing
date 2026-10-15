@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #fff;
+    font-family: Helvetica, sans-serif; display: flex; align-items: center;
+    justify-content: center; }
+  .kaart { text-align: center; }
+  h1 { font-size: 7vw; margin: 0 0 2vh; }
+  p { font-size: 2.5vw; opacity: 0.7; margin: 0; }
+  .bal { width: 12vw; height: 12vw; border-radius: 50%; background: #ffd166;
+    margin: 4vh auto 0; animation: stuiter 1.4s ease-in-out infinite; }
+  @keyframes stuiter { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4vh); } }
+</style>
+</head>
+<body>
+  <div class="kaart">
+    <h1>HTML-PAGINA</h1>
+    <p>type page, in een iframe, met eigen animatie</p>
+    <div class="bal"></div>
+  </div>
+</body>
+</html>

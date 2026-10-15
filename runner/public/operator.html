@@ -87,6 +87,7 @@
       <select id="lezingKiezer" title="welke lezing draait"></select>
       <button id="scantest">Scanner-test uit</button>
       <a class="knop" href="/editor" target="_blank">Editor</a>
+      <a class="knop" href="/barcodes" target="_blank">Barcodes</a>
       <a class="knop" id="openScherm" href="/show" target="_blank">Scherm openen</a>
     </div>
 
@@ -110,6 +111,7 @@
   </div>
 </div>
 
+<script src="/scanvanger.js"></script>
 <script>
 (function () {
   var pack = null;
@@ -310,51 +312,22 @@
 
   // ------------------------------------------------------------- scanner-test
   //
-  // De zelfscanner typt als een toetsenbord. Hangt er een scanner aan deze
-  // laptop, dan kan je daarmee de hele lezing testen zonder dat de app op het
-  // device al af is: elke scan gaat hier naar /api/scan, precies zoals het
-  // device het straks doet. Zelfde aanpak als in de v2-app: afsluiten op Enter,
-  // en anders als het getik 200 ms stil is.
-  var scantestAan = false;
-  var buffer = '';
-  var bufferTimer = null;
-
-  function commitScan() {
-    if (bufferTimer) { clearTimeout(bufferTimer); bufferTimer = null; }
-    var code = buffer.replace(/[^0-9]/g, '');
-    buffer = '';
-    if (code.length < 4) { return; }
-    fetch('/api/scan', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({barcode: code}),
-    }).then(function (r) { return r.json(); }).then(function (j) {
-      el('melding').textContent = j && j.bekend === false
-        ? 'gescand: ' + code + ' — staat niet in deze lezing'
-        : '';
-    });
-  }
-
-  el('scantest').addEventListener('click', function () {
-    scantestAan = !scantestAan;
-    el('scantest').textContent = 'Scanner-test ' + (scantestAan ? 'aan' : 'uit');
-    el('scantest').className = scantestAan ? 'aan' : '';
-    el('melding').textContent = scantestAan
-      ? 'Scan maar. Toetsaanslagen van de scanner gaan nu naar de lezing.'
-      : '';
+  // Hangt er een barcodescanner aan deze laptop, dan kan je daarmee de hele
+  // lezing testen zonder dat de app op het device al af is. Zie scanvanger.js.
+  var vanger = Scanvanger({
+    aan: false,
+    bij: function (tekst, gelukt) {
+      el('melding').textContent = gelukt ? '' : tekst;
+    },
   });
 
-  document.addEventListener('keydown', function (e) {
-    if (!scantestAan) { return; }
-    if (e.target && e.target.tagName === 'INPUT') { return; }
-    if (e.key === 'Enter') {
-      if (buffer) { e.preventDefault(); commitScan(); }
-      return;
-    }
-    if (e.key.length !== 1) { return; }
-    buffer += e.key;
-    if (bufferTimer) { clearTimeout(bufferTimer); }
-    bufferTimer = setTimeout(commitScan, 200);
+  el('scantest').addEventListener('click', function () {
+    var aan = vanger.zet(!vanger.staat());
+    el('scantest').textContent = 'Scanner-test ' + (aan ? 'aan' : 'uit');
+    el('scantest').className = aan ? 'aan' : '';
+    el('melding').textContent = aan
+      ? 'Scan maar. Toetsaanslagen van de scanner gaan nu naar de lezing.'
+      : '';
   });
 
   // --------------------------------------------------------------------- start

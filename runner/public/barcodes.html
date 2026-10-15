@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lezing — barcodes</title>
+<style>
+  :root { --bg: #15171a; --paneel: #1d2024; --rand: #2b3036; --tekst: #e8eaed;
+    --zacht: #9aa3ad; --accent: #ffd166; --mod: 2.2px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--tekst);
+    font: 15px/1.5 -apple-system, Helvetica, sans-serif; }
+
+  #balk { position: sticky; top: 0; z-index: 5; display: flex; align-items: center;
+    gap: 14px; padding: 12px 18px; background: var(--paneel);
+    border-bottom: 1px solid var(--rand); flex-wrap: wrap; }
+  #balk .rek { flex: 1; }
+  #balk h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  #balk .sub { color: var(--zacht); font-size: 13px; }
+  button, a.knop, select { font: inherit; font-size: 14px; color: var(--tekst);
+    background: #272b31; border: 1px solid var(--rand); border-radius: 7px;
+    padding: 7px 13px; cursor: pointer; text-decoration: none; }
+  button:hover, a.knop:hover { background: #30353c; }
+  button.aan { background: #2ecc71; color: #06220f; border-color: #2ecc71; font-weight: 600; }
+  #melding { padding: 0 18px 10px; font-size: 13px; min-height: 20px; color: var(--accent); }
+  #melding.fout { color: #ff9f93; }
+  label.schuif { display: flex; align-items: center; gap: 8px; color: var(--zacht); font-size: 13px; }
+
+  #uitleg { padding: 12px 18px; color: var(--zacht); font-size: 13px; max-width: 760px; }
+
+  #grid { display: flex; flex-wrap: wrap; gap: 14px; padding: 4px 18px 40px; align-items: flex-start; }
+
+  /* Altijd wit met zwarte strepen, ook in het donker: een scanner heeft dat
+     contrast nodig en leest een omgekeerde barcode niet. */
+  .kaart { background: #fff; color: #111; border-radius: 10px; padding: 12px;
+    display: flex; flex-direction: column; gap: 6px; }
+  .kaart .kop { display: flex; align-items: baseline; gap: 7px; }
+  .kaart .nr { color: #888; font-size: 12px; }
+  .kaart .label { font-weight: 600; font-size: 14px; }
+  .kaart svg { display: block; height: auto; }
+  .kaart .onder { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: 11px; color: #666; }
+  .kaart .vlag { background: #ffe9a8; color: #6b4e00; border-radius: 20px; padding: 1px 8px; }
+  .kaart .let-op { color: #a4421a; }
+
+  @media print {
+    #balk, #uitleg { display: none; }
+    html, body { background: #fff; }
+    #grid { padding: 0; gap: 10px; }
+    .kaart { break-inside: avoid; border: 1px solid #ddd; }
+  }
+</style>
+</head>
+<body>
+  <div id="balk">
+    <div>
+      <h1 id="titel">Barcodes</h1>
+      <div class="sub" id="sub">laden…</div>
+    </div>
+    <div class="rek"></div>
+    <label class="schuif">groter
+      <input type="range" id="grootte" min="1.4" max="4" step="0.1" value="2.2">
+    </label>
+    <select id="lezingKiezer"></select>
+    <button id="scantest" class="aan">Scannen aan</button>
+    <button id="printen">Printen</button>
+    <a class="knop" href="/" target="_blank">Operator</a>
+  </div>
+
+  <div id="uitleg">
+    Scan rechtstreeks van het scherm. Lukt dat niet, maak de barcodes dan groter
+    met de schuif, of print de pagina. Een barcode heeft die witte rand omheen
+    nodig, dus laat er ruimte omheen staan.
+  </div>
+
+  <div id="melding"></div>
+  <div id="grid"></div>
+
+<script src="/barcode.js"></script>
+<script src="/scanvanger.js"></script>
+<script>
+(function () {
+  var el = function (id) { return document.getElementById(id); };
+  var pack = null;
+
+  function kaart(code, titel, nr, extra) {
+    var kaart = document.createElement('div');
+    kaart.className = 'kaart';
+
+    var kop = document.createElement('div');
+    kop.className = 'kop';
+    if (nr) {
+      var n = document.createElement('span');
+      n.className = 'nr';
+      n.textContent = nr;
+      kop.appendChild(n);
+    }
+    var l = document.createElement('span');
+    l.className = 'label';
+    l.textContent = titel;
+    kop.appendChild(l);
+    kaart.appendChild(kop);
+
+    var res;
+    try {
+      res = Barcode.svg(code);
+    } catch (e) {
+      var fout = document.createElement('div');
+      fout.className = 'let-op';
+      fout.textContent = 'kan geen barcode maken: ' + e.message;
+      kaart.appendChild(fout);
+      return kaart;
+    }
+
+    var houder = document.createElement('div');
+    houder.innerHTML = res.svg;
+    var svg = houder.firstChild;
+    svg.style.width = 'calc(var(--mod) * ' + res.breedte + ')';
+    kaart.appendChild(svg);
+
+    var onder = document.createElement('div');
+    onder.className = 'onder';
+    var soort = document.createElement('span');
+    soort.textContent = res.soort;
+    onder.appendChild(soort);
+    if (extra) {
+      var e2 = document.createElement('span');
+      e2.className = 'vlag';
+      e2.textContent = extra;
+      onder.appendChild(e2);
+    }
+    if (res.waarschuwing) {
+      var w = document.createElement('span');
+      w.className = 'let-op';
+      w.textContent = res.waarschuwing;
+      onder.appendChild(w);
+    }
+    kaart.appendChild(onder);
+    return kaart;
+  }
+
+  function teken() {
+    var grid = el('grid');
+    grid.innerHTML = '';
+    if (!pack || !pack.slides) { return; }
+
+    pack.slides.forEach(function (s, i) {
+      var extra = s.frames.length > 1 ? s.frames.length + 'x scannen' : '';
+      grid.appendChild(kaart(s.barcode, s.label || '(geen label)', i + 1, extra));
+    });
+
+    if (pack.clearScan) {
+      grid.appendChild(kaart(pack.clearScan, 'scherm leeg', '', 'stuurbarcode'));
+    }
+  }
+
+  function laad(naam) {
+    var url = naam ? '/api/pack?naam=' + encodeURIComponent(naam) : '/api/pack';
+    fetch(url).then(function (r) { return r.json(); }).then(function (j) {
+      pack = j;
+      el('titel').textContent = (j.title || j.naam) + ' — barcodes';
+      document.title = (j.title || j.naam) + ' — barcodes';
+      var meer = j.slides.filter(function (s) { return s.frames.length > 1; }).length;
+      el('sub').textContent = j.slides.length + ' barcodes' +
+        (meer ? ', waarvan ' + meer + ' met meerdere frames' : '') +
+        (j.clearScan ? ', plus de stuurbarcode' : '');
+      teken();
+    });
+  }
+
+  fetch('/api/packs').then(function (r) { return r.json(); }).then(function (j) {
+    var kiezer = el('lezingKiezer');
+    j.packs.forEach(function (p) {
+      if (p.fout) { return; }
+      var o = document.createElement('option');
+      o.value = p.naam;
+      o.textContent = p.naam;
+      kiezer.appendChild(o);
+    });
+    kiezer.value = j.actief;
+    laad(j.actief);
+  });
+
+  el('lezingKiezer').addEventListener('change', function () {
+    laad(el('lezingKiezer').value);
+  });
+
+  el('grootte').addEventListener('input', function () {
+    document.documentElement.style.setProperty('--mod', el('grootte').value + 'px');
+  });
+
+  el('printen').addEventListener('click', function () { window.print(); });
+
+  // Deze pagina bestaat om van te scannen, dus staat de vanger hier meteen aan.
+  var vanger = Scanvanger({
+    aan: true,
+    bij: function (tekst, gelukt) {
+      el('melding').textContent = tekst;
+      el('melding').className = gelukt ? '' : 'fout';
+    },
+  });
+
+  el('scantest').addEventListener('click', function () {
+    var aan = vanger.zet(!vanger.staat());
+    el('scantest').textContent = 'Scannen ' + (aan ? 'aan' : 'uit');
+    el('scantest').className = aan ? 'aan' : '';
+    el('melding').textContent = '';
+  });
+})();
+</script>
+</body>
+</html>

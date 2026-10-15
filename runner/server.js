@@ -171,6 +171,26 @@ function zet(barcode, frameIndex, bron) {
 }
 
 /**
+ * Een barcode opzoeken, met één tolerantie: UPC-A (12 cijfers, Amerikaanse
+ * producten) is dezelfde code als EAN-13 met een nul ervoor. Welke van de twee
+ * een scanner teruggeeft hangt af van hoe hij is ingesteld. Staat in de lezing
+ * de ene vorm en komt de andere binnen, dan hoort die slide gewoon te werken en
+ * niet stil te blijven.
+ */
+function zoekSlide(code) {
+  if (slideOpBarcode.has(code)) {
+    return slideOpBarcode.get(code);
+  }
+  if (code.length === 12 && slideOpBarcode.has('0' + code)) {
+    return slideOpBarcode.get('0' + code);
+  }
+  if (code.length === 13 && code[0] === '0' && slideOpBarcode.has(code.slice(1))) {
+    return slideOpBarcode.get(code.slice(1));
+  }
+  return null;
+}
+
+/**
  * Een scan van de zelfscanner.
  *
  * Dezelfde barcode opnieuw = volgend frame, en na het laatste frame weer het
@@ -182,11 +202,12 @@ function scan(code) {
     zet(null, 0, 'scan');
     return {ok: true, bekend: true, leeg: true};
   }
-  const slide = slideOpBarcode.get(code);
+  const slide = zoekSlide(code);
   if (!slide) {
     // Niet in deze lezing: de stand blijft staan, de scanner meldt het.
     return {ok: true, bekend: false, barcode: code};
   }
+  code = slide.barcode;
   if (state.barcode === code) {
     zet(code, (state.frameIndex + 1) % slide.frames.length, 'scan');
   } else {
@@ -696,6 +717,10 @@ const server = http.createServer(async (req, res) => {
     return json(res, {fout: 'niet gevonden'}, 404);
   }
 
+  if (p === '/barcodes') {
+    return stuurBestand(req, res, PUBLIC_DIR, '/barcodes.html');
+  }
+
   if (p === '/editor') {
     return stuurBestand(req, res, PUBLIC_DIR, '/editor.html');
   }
@@ -729,6 +754,7 @@ server.listen(port, () => {
   console.log(`  Operator: http://localhost:${port}/`);
   console.log(`  Scherm:   http://localhost:${port}/show`);
   console.log(`  Editor:   http://localhost:${port}/editor`);
+  console.log(`  Barcodes: http://localhost:${port}/barcodes`);
   console.log(`  Scanner:  http://${ip}:${port}/api/scan   (of via usb: http://127.0.0.1:${port})`);
   console.log('');
 });

@@ -23,6 +23,7 @@ Of zonder naam, als er maar één lezing is. Daarna:
 | <http://localhost:8080/editor> | lezingen bouwen: barcodes, frames, notes, uploads |
 | <http://localhost:8080/> | operator: handbesturing, status, scanner-test |
 | <http://localhost:8080/show> | het beeld voor de beamer |
+| <http://localhost:8080/barcodes> | alle barcodes van de lezing, om van het scherm te scannen of te printen |
 
 De zelfscanner POST straks naar `http://<ip>:8080/api/scan`.
 
@@ -38,7 +39,9 @@ dezelfde `/api/scan` als straks vanaf het device.
 | `runner/public/operator.html` | handbesturing, status en de notes |
 | `runner/public/editor.html` | de editor: slides, frames, notes, uploads |
 | `runner/packs/demo/` | demo-lezing om mee te testen |
+| `runner/public/barcode.js` | EAN-13, EAN-8, UPC-A en Code 128 als svg |
 | `tools/check-pack.js` | controleert een pack vóór de lezing |
+| `tools/test-barcodes.js` | leest de barcodes terug en controleert of ze kloppen |
 | `tools/convert-oude-database.js` | zet de oude `database.json` om |
 
 De oude lezing omzetten naar het nieuwe formaat:

@@ -15,11 +15,10 @@
  *
  * Geen afhankelijkheden, met opzet. Server-sent events in plaats van een
  * websocket: de browser doet de reconnect zelf, en de runner moet later één
- * los uitvoerbaar bestand worden (zie docs/04).
+ * los uitvoerbaar bestand worden.
  *
  * De frame-teller staat hier, op één plek. In de oude versie zat hij in
- * show.html en wist de scanner niet welk frame in beeld stond -- zie bug 5 en 6
- * in docs/02.
+ * show.html en wist de scanner niet welk frame in beeld stond.
  */
 'use strict';
 
@@ -196,7 +195,7 @@ function zoekSlide(code) {
  * Een scan van de zelfscanner.
  *
  * Dezelfde barcode opnieuw = volgend frame, en na het laatste frame weer het
- * eerste. Dat is de expliciete wens van de spreker en staat daarom hier, in één
+ * eerste. Dat is een expliciete wens en staat daarom hier, in één
  * functie, en niet in de pagina's.
  */
 function scan(code) {
@@ -424,7 +423,7 @@ function stuurBestand(req, res, base, rel) {
 
 // ------------------------------------------------------------- naar de scanner
 //
-// De app voor het device is een eigen project (zie docs/05): de runner bouwt
+// De app voor het device is een eigen project: de runner bouwt
 // hem niet en kent zijn code niet. Wat we hier wél doen is zijn push-script
 // aanroepen, zodat de spreker niet in een terminal hoeft. Staat dat project er niet,
 // dan zegt de knop dat gewoon.
@@ -606,7 +605,7 @@ const server = http.createServer(async (req, res) => {
 
   // Health check voor de scanner: zo kan die zonder configuratie twee adressen
   // proberen (usb-kabel via adb reverse, en het lokale netwerk) en pakken wat
-  // antwoordt. Zie docs/04.
+  // antwoordt.
   if (p === '/api/hello') {
     return json(res, {app: 'zelfscanner-lezing', pack: pack.naam, ip: lokaalIp(), port});
   }

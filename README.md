@@ -31,7 +31,7 @@ De zelfscanner POST straks naar `http://<ip>:8080/api/scan`.
 Die laat de aangesloten apparaten zien, stuurt de lezing en de notes erheen (een
 paar kilobyte, de media blijven hier) en herstart de app. Met het vinkje "ook op
 de beamer zetten" gaat de runner meteen dezelfde lezing draaien, anders horen de
-notes in de sprekers hand bij iets anders dan het scherm laat zien.
+notes in de hand van de spreker bij iets anders dan het scherm laat zien.
 
 Daarvoor roept de runner het push-script aan van het app-project, dat hij naast
 zichzelf verwacht (`../zelfscanner-lezing-app`, of `LEZING_APP_DIR`). Staat dat
@@ -44,7 +44,7 @@ persoonlijk door; de ander zet het met "Importeren" in zijn eigen runner.
 Importeren overschrijft nooit iets: bestaat de naam al, dan wordt het `naam-2`.
 
 Echte lezingen staan met opzet niet in git, alleen `runner/packs/demo` gaat
-mee. de sprekers tekst hoort niet op internet.
+mee. De tekst van een lezing hoort niet op internet.
 
 **Zonder device testen:** hang een barcodescanner aan de laptop, zet op de
 operator-pagina "Scanner-test" aan en scan. Die toetsaanslagen gaan dan naar
@@ -70,7 +70,7 @@ De oude lezing omzetten naar het nieuwe formaat:
 node tools/convert-oude-database.js ~/Development/2024/zelfscanner-keynote/public runner/packs/mijnlezing
 ```
 
-Hiermee zijn de bugs 1 tot en met 7 uit [doc 02](docs/02-oude-versie.md) weg: de
+Hiermee zijn de bugs uit de oude versie weg: de
 frame-teller staat op de server, er zit geen ip-adres meer in de html, een
 onbekende barcode laat de stand gewoon staan, en de lezing is van de laptop af
 te draaien als de scanner het niet doet.
@@ -80,17 +80,6 @@ te draaien als de scanner het niet doet.
 ## Documenten
 
 Staan alleen lokaal in `docs/`, met opzet niet in git.
-
-1. [Wensen de spreker](docs/01-wensen.md) — zijn overzichtje, plus de vragen die
-   er nog uit volgen.
-2. [Oude versie](docs/02-oude-versie.md) — hoe het nu werkt, wat er kapot is,
-   wat we hergebruiken uit zelfscanner-v2.
-3. [Wat we nodig hebben](docs/03-wat-we-nodig-hebben.md) — opzet in drie delen,
-   pack-formaat, de vier keuzes, inschatting.
-4. [Architectuur en stack](docs/04-architectuur-en-stack.md) — de harde
-   randvoorwaarden, hoe we van de router af komen, de stack per onderdeel.
-5. [Hergebruik van zelfscanner-v2](docs/05-hergebruik-v2.md) — wat de v2-code
-   doet, wat we eruit kopiëren, en het besluit: twee aparte apps.
 
 ## De vier delen
 
@@ -103,7 +92,7 @@ Staan alleen lokaal in `docs/`, met opzet niet in git.
 
 Besluit 2026-10-15: de presentatie wordt een **eigen app**, los van de
 speurtocht-app. Eigen applicationId, eigen manifest, eigen dashboard. Wat we uit
-zelfscanner-v2 meenemen gaat als kopie mee, niet als afhankelijkheid. Zie doc 5.
+zelfscanner-v2 meenemen gaat als kopie mee, niet als afhankelijkheid.
 
 Beide kanten hebben de hele lezing lokaal. Over het draadloze netwerk gaat
 alleen "barcode X, frame 2". Daarom valt de installatie niet meer om als het

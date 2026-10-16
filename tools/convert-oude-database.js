@@ -60,7 +60,7 @@ try {
 }
 
 /**
- * In de sprekers echte database staat "note" twee keer in hetzelfde blok: eerst kort
+ * In de echte database staat "note" twee keer in hetzelfde blok: eerst kort
  * de productnaam ("PRODUCT"), daarna zijn voorleestekst. JSON houdt bij
  * dubbele sleutels alleen de laatste over, dus die productnaam gaat bij een
  * gewone JSON.parse verloren. Zonde: het is precies het label waarmee je in de

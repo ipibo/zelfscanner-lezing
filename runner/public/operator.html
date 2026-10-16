@@ -212,7 +212,7 @@
     el('nuCode').textContent =
       stand.barcode + '   ' + (stand.frame ? stand.frame.type + ' · ' + stand.frame.src : '') +
       '   via ' + (stand.bron === 'scan' ? 'scan' : stand.bron === 'operator' ? 'laptop' : 'start');
-    // De note mag html bevatten (de spreker gebruikt <br>), net als op de scanner.
+    // De note mag html bevatten (bijvoorbeeld <br>), net als op de scanner.
     el('note').innerHTML = stand.note || '—';
     el('note').className = stand.note ? '' : 'leeg';
     markeerLijst();

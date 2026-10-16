@@ -5,9 +5,9 @@
  *
  * Aanpak overgenomen uit zelfscanner-v2 (tools/manifest-schema.js, 2026-09),
  * maar met het formaat van de lezing. Die twee projecten zijn los van elkaar,
- * zie docs/05-hergebruik-v2.md: dit is een kopie, geen afhankelijkheid.
+ * dit is een kopie, geen afhankelijkheid.
  *
- * Vorm (zie docs/03-wat-we-nodig-hebben.md):
+ * Vorm:
  *   {
  *     version: "1.0.0",
  *     title: "Mijn lezing",
@@ -28,7 +28,7 @@
  * Eén slide = één barcode. `frames` is altijd een lijst, ook bij één beeld:
  * daardoor is er één code-pad in plaats van het `multiple`-geval uit de oude
  * database.json. Na het laatste frame springt een nieuwe scan terug naar het
- * eerste (expliciete wens van de spreker).
+ * eerste (expliciete wens).
  */
 'use strict';
 
@@ -40,7 +40,7 @@ const path = require('path');
 const BARCODE_RE = /^[0-9]{4,14}$/;
 
 // Soort bestand -> extensies. Het type van een frame leiden we hieruit af, dus
-// de spreker hoeft nooit "image" of "page" te typen. Dat was fout nummer één in de
+// De spreker hoeft nooit "image" of "page" te typen. Dat was fout nummer één in de
 // oude handmatige database.
 const EXT = {
   image: new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']),

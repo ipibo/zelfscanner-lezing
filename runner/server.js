@@ -30,6 +30,7 @@ const path = require('path');
 const crypto = require('crypto');
 const {execFile} = require('child_process');
 const {loadPack, validateManifest, kindForFile} = require('../shared/manifest-schema');
+const {pakIn, pakUit} = require('../shared/lezing-bestand');
 
 const ROOT = __dirname;
 const PACKS_DIR = path.join(ROOT, 'packs');
@@ -782,6 +783,64 @@ const server = http.createServer(async (req, res) => {
       zet(nog ? state.barcode : null, nog ? Math.min(state.frameIndex, nog.frames.length - 1) : 0, 'operator');
     }
     return json(res, {ok: true});
+  }
+
+  // Een lezing als één .lezing-bestand, om persoonlijk door te geven. Zie
+  // shared/lezing-bestand.js.
+  if (p === '/api/export') {
+    const doel = packs.get(String(url.searchParams.get('naam') || ''));
+    if (!doel) {
+      return json(res, {ok: false, fout: 'die lezing bestaat niet'}, 404);
+    }
+    let data;
+    try {
+      data = pakIn(doel.dir);
+    } catch (e) {
+      return json(res, {ok: false, fout: e.message}, 400);
+    }
+    console.log(`export ${doel.naam} (${Math.round(data.length / 1024)} kB)`);
+    res.writeHead(200, {
+      'Content-Type': 'application/zip',
+      'Content-Length': data.length,
+      'Content-Disposition': `attachment; filename="${doel.naam}.lezing"`,
+      'Cache-Control': 'no-store',
+    });
+    return res.end(data);
+  }
+
+  if (p === '/api/import' && req.method === 'POST') {
+    // De naam komt van de bestandsnaam ("mijnlezing.lezing" -> mijnlezing). Bestaat die al,
+    // dan wordt het mijnlezing-2: importeren overschrijft nooit een lezing.
+    const basis =
+      String(url.searchParams.get('naam') || '')
+        .replace(/\.(lezing|zip)$/i, '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^[-_]+|[-_]+$/g, '')
+        .slice(0, 36) || 'lezing';
+    let data;
+    try {
+      data = await leesRuw(req);
+    } catch (e) {
+      return json(res, {ok: false, fout: e.message}, 400);
+    }
+    const tijdelijk = path.join(PACKS_DIR, `.import-${crypto.randomBytes(4).toString('hex')}`);
+    try {
+      pakUit(data, tijdelijk);
+      loadPack(tijdelijk);
+    } catch (e) {
+      fs.rmSync(tijdelijk, {recursive: true, force: true});
+      return json(res, {ok: false, fout: e.message}, 400);
+    }
+    let naam = basis;
+    for (let n = 2; packs.has(naam) || fs.existsSync(path.join(PACKS_DIR, naam)); n++) {
+      naam = `${basis}-${n}`;
+    }
+    fs.renameSync(tijdelijk, path.join(PACKS_DIR, naam));
+    herlaad();
+    console.log(`import ${naam} (${Math.round(data.length / 1024)} kB)`);
+    return json(res, {ok: true, naam});
   }
 
   if (p === '/api/upload' && req.method === 'POST') {

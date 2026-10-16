@@ -137,6 +137,8 @@
   <div id="balk">
     <select id="lezingKiezer" title="welke lezing bewerk je"></select>
     <button id="nieuweLezing">Nieuwe lezing</button>
+    <button id="importeer" title="een .lezing-bestand inlezen">Importeren</button>
+    <button id="exporteer" title="deze lezing als één .lezing-bestand bewaren, om door te geven">Exporteren</button>
     <input type="text" id="titel" placeholder="titel van de lezing" style="width: 230px">
     <div class="rek"></div>
     <span id="opslaanStatus">opgeslagen</span>
@@ -165,6 +167,7 @@
 
 <input type="file" id="bestandKiezer" multiple style="display: none"
        accept="image/*,video/*,.html,.htm">
+<input type="file" id="lezingKiezerBestand" style="display: none" accept=".lezing,.zip">
 
 <div id="scannerLaag">
   <div id="scannerVak">
@@ -644,6 +647,38 @@
         laadLezing(j.naam);
       });
     });
+  });
+
+  // ------------------------------------------------- exporteren en importeren
+  el('exporteer').addEventListener('click', function () {
+    if (!naam) { return; }
+    if (vuil && !confirm('Je hebt niet-opgeslagen wijzigingen. Die gaan niet mee. Toch exporteren?')) {
+      return;
+    }
+    location.href = '/api/export?naam=' + encodeURIComponent(naam);
+  });
+
+  el('importeer').addEventListener('click', function () {
+    if (vuil && !confirm('Je hebt niet-opgeslagen wijzigingen. Toch importeren?')) { return; }
+    el('lezingKiezerBestand').value = '';
+    el('lezingKiezerBestand').click();
+  });
+
+  el('lezingKiezerBestand').addEventListener('change', function (e) {
+    var bestand = e.target.files[0];
+    if (!bestand) { return; }
+    el('opslaanStatus').textContent = 'importeren…';
+    fetch('/api/import?naam=' + encodeURIComponent(bestand.name), {method: 'POST', body: bestand})
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) {
+          zetVuil(vuil);
+          toonFouten(['Importeren mislukt: ' + j.fout]);
+          return;
+        }
+        naam = j.naam;
+        laadLezingen().then(function () { laadLezing(j.naam); });
+      });
   });
 
   el('lezingKiezer').addEventListener('change', function () {

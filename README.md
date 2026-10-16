@@ -38,6 +38,14 @@ zichzelf verwacht (`../zelfscanner-lezing-app`, of `LEZING_APP_DIR`). Staat dat
 er niet, dan zegt de knop dat. De twee projecten blijven los van elkaar: dit is
 een aanroep van een tool, geen afhankelijkheid in de code.
 
+**Een lezing doorgeven:** in de editor op "Exporteren". Dat geeft één bestand,
+`naam.lezing`, met de tekst en alle media erin (een gewone zip). Geef dat
+persoonlijk door; de ander zet het met "Importeren" in zijn eigen runner.
+Importeren overschrijft nooit iets: bestaat de naam al, dan wordt het `naam-2`.
+
+Echte lezingen staan met opzet niet in git, alleen `runner/packs/demo` gaat
+mee. de sprekers tekst hoort niet op internet.
+
 **Zonder device testen:** hang een barcodescanner aan de laptop, zet op de
 operator-pagina "Scanner-test" aan en scan. Die toetsaanslagen gaan dan naar
 dezelfde `/api/scan` als straks vanaf het device.
@@ -51,6 +59,7 @@ dezelfde `/api/scan` als straks vanaf het device.
 | `runner/public/editor.html` | de editor: slides, frames, notes, uploads |
 | `runner/packs/demo/` | demo-lezing om mee te testen |
 | `runner/public/barcode.js` | EAN-13, EAN-8, UPC-A en Code 128 als svg |
+| `shared/lezing-bestand.js` | een lezing in- en uitpakken als `.lezing`-bestand |
 | `tools/check-pack.js` | controleert een pack vóór de lezing |
 | `tools/test-barcodes.js` | leest de barcodes terug en controleert of ze kloppen |
 | `tools/convert-oude-database.js` | zet de oude `database.json` om |

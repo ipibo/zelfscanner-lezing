@@ -2,7 +2,10 @@ node_modules/
 .DS_Store
 dist/
 
-# Media van echte lezingen blijft buiten git (groot, en het komt straks uit het
-# dashboard). Het demo-pack gaat wel mee, zodat de runner direct te testen is.
-runner/packs/*/assets/*
-!runner/packs/demo/assets/*
+# Echte lezingen blijven buiten git: niet alleen de media, ook de tekst. Die
+# gaan als .lezing-bestand persoonlijk van hand tot hand (Exporteren/Importeren
+# in de editor). Alleen het demo-pack gaat mee, zodat de runner direct te
+# testen is.
+runner/packs/*
+!runner/packs/demo/
+*.lezing

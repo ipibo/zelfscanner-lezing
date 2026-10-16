@@ -79,6 +79,8 @@ te draaien als de scanner het niet doet.
 
 ## Documenten
 
+Staan alleen lokaal in `docs/`, met opzet niet in git.
+
 1. [Wensen de spreker](docs/01-wensen.md) — zijn overzichtje, plus de vragen die
    er nog uit volgen.
 2. [Oude versie](docs/02-oude-versie.md) — hoe het nu werkt, wat er kapot is,

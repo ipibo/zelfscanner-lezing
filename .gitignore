@@ -9,3 +9,6 @@ dist/
 runner/packs/*
 !runner/packs/demo/
 *.lezing
+
+# Interne documenten (wensen van de spreker, plannen) blijven lokaal.
+docs/

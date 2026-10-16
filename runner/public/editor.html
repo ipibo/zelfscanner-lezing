@@ -108,6 +108,7 @@
     max-height: calc(100vh - 60px); overflow-y: auto; }
   #scannerVak h3 { margin: 0 0 10px; font-size: 17px; }
   #scannerVak .uitleg { color: var(--zacht); font-size: 13px; margin: 0 0 16px; }
+  #scannerVak .uitleg a { color: var(--tekst); }
   .device { display: flex; align-items: center; gap: 10px; border: 1px solid var(--rand);
     border-radius: 8px; padding: 9px 12px; margin-bottom: 7px; cursor: pointer; }
   .device.actief { border-color: var(--accent); background: #2a2a20; }
@@ -178,6 +179,10 @@
       zichzelf met de nieuwe lezing.
     </p>
     <div id="deviceLijst">zoeken naar apparaten…</div>
+    <p class="uitleg">
+      Geen kabel? <a href="/koppel" target="_blank">Koppel de scanner over wifi</a>.
+      Hij haalt dan zelf de lezing op die op de beamer staat.
+    </p>
     <label id="ookDraaienRegel">
       <input type="checkbox" id="ookDraaien" checked>
       ook op de beamer zetten
@@ -722,8 +727,8 @@
         return;
       }
       if (!j.devices.length) {
-        box.innerHTML = '<div class="uitleg">Geen apparaat aangesloten. ' +
-          'Hang de scanner aan de usb-kabel of verbind hem over wifi.</div>';
+        box.innerHTML = '<div class="uitleg">Geen apparaat via adb. ' +
+          'Hang de scanner aan de usb-kabel, of koppel hem zonder kabel (hieronder).</div>';
         return;
       }
       j.devices.forEach(function (d) {

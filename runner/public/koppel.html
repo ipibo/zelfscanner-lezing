@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lezing — scanner koppelen</title>
+<style>
+  :root { --bg: #15171a; --paneel: #1d2024; --rand: #2b3036; --tekst: #e8eaed;
+    --zacht: #9aa3ad; --accent: #ffd166; --goed: #2ecc71; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--tekst);
+    font: 15px/1.5 -apple-system, Helvetica, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 18px 48px; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  ol { color: var(--zacht); padding-left: 20px; }
+  ol li { margin: 4px 0; }
+  ol b { color: var(--tekst); }
+
+  /* Altijd wit met zwarte strepen, ook in het donker: een scanner heeft dat
+     contrast nodig en leest een omgekeerde barcode niet. */
+  .kaart { background: #fff; color: #111; border-radius: 10px; padding: 18px;
+    margin: 18px 0; }
+  .kaart .kop { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+  .kaart svg { display: block; width: 100%; max-width: 640px; height: auto; }
+  .kaart .onder { font-size: 12px; color: #666; margin-top: 6px; }
+
+  #status { padding: 10px 14px; border-radius: 8px; background: var(--paneel);
+    border: 1px solid var(--rand); color: var(--zacht); }
+  #status.goed { color: var(--goed); border-color: var(--goed); }
+  #status.fout { color: #ff9f93; }
+  .klein { color: var(--zacht); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Scanner koppelen, zonder kabel</h1>
+  <ol>
+    <li><b>Scanner en deze laptop op hetzelfde wifi-netwerk.</b> Op de scanner: Instellingen &rarr; Wi-Fi.</li>
+    <li><b>Open de lezing-app op de scanner</b> en scan de barcode hieronder.</li>
+    <li>De scanner onthoudt dit adres en haalt zelf de lezing op die hier actief is.</li>
+  </ol>
+
+  <div id="codes">adressen ophalen&hellip;</div>
+  <div id="status">wachten op de scanner&hellip;</div>
+  <p class="klein">
+    Andere lezing op de scanner? Zet hem actief in de editor of op de operator-pagina.
+    De scanner haalt hem binnen 15 seconden op, of meteen als je op de statusregel
+    onderaan de scanner tikt.
+  </p>
+</main>
+
+<script src="/barcode.js"></script>
+<script>
+(function () {
+  var el = function (id) { return document.getElementById(id); };
+
+  // Zelfde voorvoegsel als KOPPEL_PREFIX in pack/lezing.js van de app.
+  function koppelCode(ip, port) {
+    return 'ZSL:' + ip + ':' + port;
+  }
+
+  function kaart(ip, port) {
+    var code = koppelCode(ip, port);
+    var k = document.createElement('div');
+    k.className = 'kaart';
+    var kop = document.createElement('div');
+    kop.className = 'kop';
+    kop.textContent = 'Laptop op ' + ip;
+    k.appendChild(kop);
+    var houder = document.createElement('div');
+    houder.innerHTML = Barcode.svg(code, {hoogte: 60}).svg;
+    k.appendChild(houder.firstChild);
+    var onder = document.createElement('div');
+    onder.className = 'onder';
+    onder.textContent = code;
+    k.appendChild(onder);
+    return k;
+  }
+
+  fetch('/api/adressen').then(function (r) { return r.json(); }).then(function (j) {
+    var box = el('codes');
+    box.innerHTML = '';
+    if (!j.ips.length) {
+      box.innerHTML = '<p id="geen">Deze laptop zit op geen enkel netwerk. Zet wifi aan en herlaad.</p>';
+      return;
+    }
+    if (j.ips.length > 1) {
+      var p = document.createElement('p');
+      p.className = 'klein';
+      p.textContent = 'Deze laptop heeft meerdere adressen. Scan de barcode van het netwerk waar de scanner op zit.';
+      box.appendChild(p);
+    }
+    j.ips.forEach(function (ip) { box.appendChild(kaart(ip, j.port)); });
+  }).catch(function () {
+    el('codes').textContent = 'kon de adressen niet ophalen';
+  });
+
+  // De scanner meldt zich elke 15 seconden via /api/hello?van=scanner.
+  function check() {
+    fetch('/api/state').then(function (r) { return r.json(); }).then(function (j) {
+      var s = el('status');
+      if (j.scannerLaatstGezien !== null && j.scannerLaatstGezien < 20000) {
+        s.className = 'goed';
+        s.textContent = 'Scanner verbonden.';
+      } else if (j.scannerLaatstGezien !== null) {
+        s.className = '';
+        s.textContent = 'Scanner ' + Math.round(j.scannerLaatstGezien / 1000) + ' seconden niet gezien.';
+      } else {
+        s.className = '';
+        s.textContent = 'Wachten op de scanner…';
+      }
+    }).catch(function () {
+      el('status').className = 'fout';
+      el('status').textContent = 'runner antwoordt niet';
+    });
+  }
+  check();
+  setInterval(check, 2000);
+})();
+</script>
+</body>
+</html>

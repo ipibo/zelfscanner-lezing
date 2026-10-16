@@ -348,6 +348,39 @@ function lokaalIp() {
   return '127.0.0.1';
 }
 
+/** Alle lan-adressen: wifi en ethernet kunnen allebei aan staan. */
+function lokaleIps() {
+  const uit = [];
+  const nets = os.networkInterfaces();
+  for (const naam of Object.keys(nets)) {
+    for (const net of nets[naam] || []) {
+      if (net.family === 'IPv4' && !net.internal) {
+        uit.push(net.address);
+      }
+    }
+  }
+  return uit;
+}
+
+/** De actieve lezing zoals de scanner hem ophaalt. */
+function packVoorScanner() {
+  return {
+    naam: pack.naam,
+    title: pack.manifest.title,
+    version: pack.manifest.version,
+    clearScan: pack.manifest.clearScan,
+    slides: pack.manifest.slides,
+  };
+}
+
+/**
+ * Vingerafdruk van de actieve lezing. Zit in /api/hello, zodat de scanner bij
+ * elke health check ziet of hij de lezing opnieuw moet ophalen.
+ */
+function packRev() {
+  return crypto.createHash('md5').update(JSON.stringify(packVoorScanner())).digest('hex').slice(0, 12);
+}
+
 function json(res, obj, code) {
   const body = JSON.stringify(obj);
   res.writeHead(code || 200, {
@@ -608,13 +641,7 @@ const server = http.createServer(async (req, res) => {
         slides: doel.manifest.slides,
       });
     }
-    return json(res, {
-      naam: pack.naam,
-      title: pack.manifest.title,
-      version: pack.manifest.version,
-      clearScan: pack.manifest.clearScan,
-      slides: pack.manifest.slides,
-    });
+    return json(res, Object.assign(packVoorScanner(), {rev: packRev()}));
   }
 
   if (p === '/api/state') {
@@ -629,9 +656,19 @@ const server = http.createServer(async (req, res) => {
 
   // Health check voor de scanner: zo kan die zonder configuratie twee adressen
   // proberen (usb-kabel via adb reverse, en het lokale netwerk) en pakken wat
-  // antwoordt.
+  // antwoordt. `rev` verandert als de actieve lezing verandert; dan haalt de
+  // scanner hem opnieuw op via /api/pack, zonder adb.
   if (p === '/api/hello') {
-    return json(res, {app: 'zelfscanner-lezing', pack: pack.naam, ip: lokaalIp(), port});
+    // De operator-pagina vraagt hem ook; alleen de scanner zet ?van=scanner.
+    if (url.searchParams.get('van') === 'scanner') {
+      scannerLaatstGezien = Date.now();
+    }
+    return json(res, {app: 'zelfscanner-lezing', pack: pack.naam, rev: packRev(), ip: lokaalIp(), port});
+  }
+
+  // Voor de koppelpagina: op welke adressen deze laptop te vinden is.
+  if (p === '/api/adressen') {
+    return json(res, {ips: lokaleIps(), port});
   }
 
   // ----------------------------------------------------------------- editor
@@ -953,6 +990,10 @@ const server = http.createServer(async (req, res) => {
     return json(res, {fout: 'niet gevonden'}, 404);
   }
 
+  if (p === '/koppel') {
+    return stuurBestand(req, res, PUBLIC_DIR, '/koppel.html');
+  }
+
   if (p === '/barcodes') {
     return stuurBestand(req, res, PUBLIC_DIR, '/barcodes.html');
   }
@@ -991,6 +1032,7 @@ server.listen(port, () => {
   console.log(`  Scherm:   http://localhost:${port}/show`);
   console.log(`  Editor:   http://localhost:${port}/editor`);
   console.log(`  Barcodes: http://localhost:${port}/barcodes`);
+  console.log(`  Koppelen: http://localhost:${port}/koppel   (scanner zonder kabel)`);
   console.log(`  Scanner:  http://${ip}:${port}/api/scan   (of via usb: http://127.0.0.1:${port})`);
   console.log('');
 });

@@ -142,7 +142,7 @@
     }
 
     // UPC-A is een EAN-13 met een nul ervoor. Amerikaanse producten hebben
-    // deze code; in de echte lezing is dat de een Amerikaans product. De strepen zijn dus
+    // deze code. De strepen zijn dus
     // gewoon EAN-13, alleen staat het cijfer vooraan niet in de tekst.
     if (alleenCijfers && tekst.length === 12) {
       var d12 = cijfers('0' + tekst);

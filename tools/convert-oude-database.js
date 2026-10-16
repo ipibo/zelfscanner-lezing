@@ -61,7 +61,7 @@ try {
 
 /**
  * In de echte database staat "note" twee keer in hetzelfde blok: eerst kort
- * de productnaam ("PRODUCT"), daarna zijn voorleestekst. JSON houdt bij
+ * de productnaam, daarna zijn voorleestekst. JSON houdt bij
  * dubbele sleutels alleen de laatste over, dus die productnaam gaat bij een
  * gewone JSON.parse verloren. Zonde: het is precies het label waarmee je in de
  * operator-lijst een slide terugvindt. Daarom halen we hem met een scan over de
@@ -102,7 +102,7 @@ const {labels, volgorde} = leesRuweTekst(raw);
  * De volgorde in het bestand is de volgorde van de lezing. Object.keys() geeft
  * die NIET terug: JavaScript zet sleutels die op een array-index lijken
  * vooraan, dus een barcode van 8 cijfers springt voor eentje van 13. Daardoor
- * stond in de eerste conversie PRODUCT bovenaan in plaats van PRODUCT. Voor
+ * stond in de eerste conversie de verkeerde slide bovenaan. Voor
  * het scannen maakt de volgorde niet uit, voor de lijst en de pijltjes op de
  * operator-pagina wel.
  */

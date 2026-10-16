@@ -19,6 +19,10 @@
   #start.weg { display: none; }
   #start b { display: block; font-size: 40px; margin-bottom: 12px; }
   #start span { opacity: 0.55; font-size: 17px; display: block; margin-top: 18px; }
+  #venster { margin-top: 28px; background: none; color: #eee; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.35); border-radius: 6px;
+    font: 400 16px/1 Helvetica, sans-serif; padding: 10px 16px; }
+  #venster:hover { border-color: #eee; }
 
   /* Verbindingslampje. Alleen te zien als de verbinding wég is, en klein genoeg
      om in de zaal niet op te vallen. 'd' zet het helemaal uit. */
@@ -36,6 +40,7 @@
       <b>Lezing</b>
       Klik om beeldvullend te starten
       <span>Eén klik is ook nodig voordat video met geluid mag spelen</span>
+      <button id="venster" type="button">Starten in venster (v)</button>
     </div>
   </div>
 
@@ -50,25 +55,34 @@
   var lampjeUit = false;
   var offlineTimer = null;
 
-  startEl.addEventListener('click', function () {
+  var vensterEl = document.getElementById('venster');
+
+  function start(beeldvullend) {
     startEl.className = 'weg';
-    var el = document.documentElement;
-    var fs = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (fs) {
-      try { fs.call(el, {navigationUI: 'hide'}); } catch (e) { try { fs.call(el); } catch (e2) {} }
+    if (beeldvullend) {
+      var el = document.documentElement;
+      var fs = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (fs) {
+        try { fs.call(el, {navigationUI: 'hide'}); } catch (e) { try { fs.call(el); } catch (e2) {} }
+      }
     }
     // De klik geldt als gebruikersactie: een video die nu al in beeld staat mag
     // daarna met geluid spelen.
     var v = slideEl.querySelector('video');
     if (v) { v.play(); }
-  });
+  }
+
+  startEl.addEventListener('click', function () { start(true); });
+  // Om te testen: wel de gebruikersactie, maar het venster blijft een venster.
+  vensterEl.addEventListener('click', function (e) { e.stopPropagation(); start(false); });
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'd') {
       lampjeUit = !lampjeUit;
       if (lampjeUit) { linkEl.className = ''; }
     }
-    if (e.key === 'f') { startEl.click(); }
+    if (e.key === 'f') { start(true); }
+    if (e.key === 'v' && startEl.className !== 'weg') { start(false); }
   });
 
   function render(stand) {

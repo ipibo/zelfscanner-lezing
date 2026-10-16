@@ -28,7 +28,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const {execFile} = require('child_process');
-const {loadPack, validateManifest, kindForFile} = require('../shared/manifest-schema');
+const {loadPack, validateManifest, normalizeManifest, kindForFile} = require('../shared/manifest-schema');
 const {pakIn, pakUit} = require('../shared/lezing-bestand');
 
 const ROOT = __dirname;
@@ -64,16 +64,37 @@ function lesPacksIn() {
     .sort();
   const uit = new Map();
   for (const naam of namen) {
+    const dir = path.join(PACKS_DIR, naam);
     try {
-      const p = loadPack(path.join(PACKS_DIR, naam));
+      const p = loadPack(dir);
       p.naam = naam;
       p.fout = null;
+      p.leeg = false;
       uit.set(naam, p);
     } catch (e) {
-      uit.set(naam, {naam, dir: path.join(PACKS_DIR, naam), manifest: null, fout: e.message});
+      // Een nieuwe lezing heeft nog geen slides. Die is niet fout: je moet hem
+      // in de editor kunnen openen om slides toe te voegen. Draaien kan pas als
+      // er iets in staat.
+      const leeg = leesLegeLezing(dir);
+      uit.set(
+        naam,
+        leeg
+          ? {naam, dir, manifest: leeg, fout: null, leeg: true}
+          : {naam, dir, manifest: null, fout: e.message, leeg: false},
+      );
     }
   }
   return uit;
+}
+
+/** Het manifest van een lezing zonder slides, of null als het iets anders is. */
+function leesLegeLezing(dir) {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(dir, 'lezing.json'), 'utf8'));
+    return m && Array.isArray(m.slides) && m.slides.length === 0 ? normalizeManifest(m) : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 let packs = lesPacksIn();
@@ -87,6 +108,9 @@ function zetActief(naam) {
   if (p.fout) {
     throw new Error(`lezing "${naam}" klopt niet: ${p.fout}`);
   }
+  if (p.leeg) {
+    throw new Error(`lezing "${naam}" heeft nog geen slides`);
+  }
   pack = p;
   slideOpBarcode.clear();
   pack.manifest.slides.forEach((slide, i) => {
@@ -98,7 +122,7 @@ function zetActief(naam) {
 const slideOpBarcode = new Map();
 
 try {
-  const goede = [...packs.values()].filter(p => !p.fout);
+  const goede = [...packs.values()].filter(p => !p.fout && !p.leeg);
   if (packs.size === 0) {
     throw new Error('geen lezingen in runner/packs/ -- maak er een in de editor');
   }
@@ -125,7 +149,7 @@ try {
 function herlaad(actief) {
   packs = lesPacksIn();
   const naam = actief || (pack && pack.naam);
-  if (packs.has(naam) && !packs.get(naam).fout) {
+  if (packs.has(naam) && !packs.get(naam).fout && !packs.get(naam).leeg) {
     zetActief(naam);
   }
 }
@@ -635,8 +659,8 @@ const server = http.createServer(async (req, res) => {
       return json(res, {ok: false, fout: e.message}, 400);
     }
     const doel = packs.get(String(body.naam || ''));
-    if (!doel || doel.fout) {
-      return json(res, {ok: false, fout: 'kies een lezing die klopt'}, 400);
+    if (!doel || doel.fout || doel.leeg) {
+      return json(res, {ok: false, fout: 'kies een lezing die klopt en slides heeft'}, 400);
     }
     if (!fs.existsSync(PUSH_SCRIPT)) {
       return json(res, {ok: false, fout: `geen push-script op ${PUSH_SCRIPT}`}, 400);
@@ -765,6 +789,10 @@ const server = http.createServer(async (req, res) => {
     const manifest = body.manifest;
     // Een lege lijst slides mag tijdens het bewerken, alleen niet om mee te
     // draaien: anders kan je geen nieuwe lezing opbouwen.
+    const wordtLeeg = manifest && Array.isArray(manifest.slides) && manifest.slides.length === 0;
+    if (wordtLeeg && pack && pack.naam === naam) {
+      return json(res, {ok: false, fout: 'deze lezing draait nu, hij moet minstens één slide houden'}, 400);
+    }
     const fouten =
       manifest && Array.isArray(manifest.slides) && manifest.slides.length === 0
         ? []
